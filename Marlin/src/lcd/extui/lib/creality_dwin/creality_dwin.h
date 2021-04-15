@@ -36,7 +36,7 @@ enum processID : uint8_t {
 };
 
 enum popupID : uint8_t {
-  Pause, Stop, Resume, SaveLevel, ETemp, Level, Home, MoveWait, Heating, Complete, FilLoad, FilChange, UI, TempWarn, Runout
+  Pause, Stop, Resume, SaveLevel, ETemp, ConfLevel, Level, Home, MoveWait, Heating, Complete, FilLoad, FilChange, UI, TempWarn, Runout
 };
 
 enum menuID : uint8_t {
@@ -49,6 +49,7 @@ enum menuID : uint8_t {
       ChangeFilament,
     Control,
       TempMenu,
+        PID,
         Preheat1,
         Preheat2,
         Preheat3,
@@ -184,10 +185,12 @@ enum menuID : uint8_t {
   #define ICON_Fade                 202
   #define ICON_Mesh                 203
   #define ICON_Tilt                 204
+  #define ICON_Brightness           205
 #else
   #define ICON_Fade                 ICON_Version
   #define ICON_Mesh                 ICON_Version
   #define ICON_Tilt                 ICON_Version
+  #define ICON_Brightness           ICON_Version
 #endif
 
 
@@ -224,6 +227,9 @@ class CrealityDWINClass {
 public:
   struct EEPROM_Settings { // use bit fields to save space, max 48 bytes
     bool time_format_textual : 1;
+    #if ENABLED(AUTO_BED_LEVELING_UBL)
+      uint8_t tilt_grid_size : 3;
+    #endif
   } eeprom_settings;
 
   inline void Clear_Screen(uint8_t e=3);
@@ -291,6 +297,8 @@ public:
   void Startup();
   void AudioFeedback(const bool success=true);
   void SDCardInsert();
+  void Save_Settings();
+  void Load_Settings();
 
 };
 
