@@ -27,12 +27,11 @@
 
 #include "../../inc/MarlinConfigPre.h"
 
-#if ENABLED(CREALITY_DWIN_EXTUI)
+#if ENABLED(DWIN_CREALITY_LCD)
 
 #include "creality_dwin.h"
-#include "../ui_api.h"
 
-#include "../../marlinui.h"
+#include "../marlinui.h"
 #include "../../MarlinCore.h"
 
 #include "../../module/temperature.h"
@@ -250,7 +249,6 @@ CrealityDWINClass CrealityDWIN;
           }
 
           mesh_z_values[i][j] = mz - lsf_results.D;
-          ExtUI::onMeshUpdate(i, j, mesh_z_values[i][j]);
         }
         return false;
       }
@@ -393,13 +391,13 @@ CrealityDWINClass CrealityDWIN;
 //  3=Title bar and Menu area (default)
 //  2=Menu area
 //  1=Title bar
-inline void CrealityDWINClass::Clear_Screen(uint8_t e/*=3*/) {
+void CrealityDWINClass::Clear_Screen(uint8_t e/*=3*/) {
   if (e==1||e==3||e==4) DWIN_Draw_Rectangle(1, GetColor(eeprom_settings.menu_top_bg, Color_Bg_Blue, false), 0, 0, DWIN_WIDTH, TITLE_HEIGHT); // Clear Title Bar
   if (e==2||e==3) DWIN_Draw_Rectangle(1, Color_Bg_Black, 0, 31, DWIN_WIDTH, STATUS_Y); // Clear Menu Area
   if (e==4) DWIN_Draw_Rectangle(1, Color_Bg_Black, 0, 31, DWIN_WIDTH, DWIN_HEIGHT); // Clear Popup Area
 }
 
-inline void CrealityDWINClass::Draw_Float(float value, uint8_t row, bool selected/*=false*/, uint8_t minunit/*=10*/) {
+void CrealityDWINClass::Draw_Float(float value, uint8_t row, bool selected/*=false*/, uint8_t minunit/*=10*/) {
   uint16_t bColor = (selected) ? Select_Color : Color_Bg_Black;
   if (isnan(value)) {
     DWIN_Draw_String(false, true, DWIN_FONT_MENU, Color_White, bColor, 196, MBASE(row), F(" NaN"));
@@ -413,14 +411,14 @@ inline void CrealityDWINClass::Draw_Float(float value, uint8_t row, bool selecte
   }
 }
 
-inline void CrealityDWINClass::Draw_Option(uint8_t value, char** options, uint8_t row, bool selected/*=false*/, bool color/*=false*/) {
+void CrealityDWINClass::Draw_Option(uint8_t value, char** options, uint8_t row, bool selected/*=false*/, bool color/*=false*/) {
   uint16_t bColor = (selected) ? Select_Color : Color_Bg_Black;
   uint16_t tColor = (color) ? GetColor(value, Color_White, false) : Color_White;
   DWIN_Draw_Rectangle(1, bColor, 202, MBASE(row) + 14, 258, MBASE(row) - 2);
   DWIN_Draw_String(false, false, DWIN_FONT_MENU, tColor, bColor, 202, MBASE(row) - 1, options[value]);
 }
 
-inline uint16_t CrealityDWINClass::GetColor(uint8_t color, uint16_t original, bool light/*=false*/) {
+uint16_t CrealityDWINClass::GetColor(uint8_t color, uint16_t original, bool light/*=false*/) {
   switch (color){
     case Default:
       return original;
@@ -459,11 +457,11 @@ inline uint16_t CrealityDWINClass::GetColor(uint8_t color, uint16_t original, bo
   return Color_White;
 }
 
-inline void CrealityDWINClass::Draw_Title(char *title) {
+void CrealityDWINClass::Draw_Title(char *title) {
   DWIN_Draw_String(false, false, DWIN_FONT_HEAD, GetColor(eeprom_settings.menu_top_txt, Color_White, false), Color_Bg_Blue, (DWIN_WIDTH - strlen(title) * STAT_CHR_W) / 2, 5, title);
 }
 
-inline void CrealityDWINClass::Draw_Menu_Item(uint8_t row, uint8_t icon/*=0*/, char *label1, char *label2, bool more/*=false*/, bool centered/*=false*/) {
+void CrealityDWINClass::Draw_Menu_Item(uint8_t row, uint8_t icon/*=0*/, char *label1, char *label2, bool more/*=false*/, bool centered/*=false*/) {
   const uint8_t label_offset_y = !(label1 && label2) ? 0 : MENU_CHR_H * 3 / 5;
   const uint8_t label1_offset_x = !centered ? LBLX : LBLX * 4/5 + max(LBLX * 1U/5, (DWIN_WIDTH - LBLX - (label1 ? strlen(label1) : 0) * MENU_CHR_W) / 2);
   const uint8_t label2_offset_x = !centered ? LBLX : LBLX * 4/5 + max(LBLX * 1U/5, (DWIN_WIDTH - LBLX - (label2 ? strlen(label2) : 0) * MENU_CHR_W) / 2);
@@ -474,8 +472,8 @@ inline void CrealityDWINClass::Draw_Menu_Item(uint8_t row, uint8_t icon/*=0*/, c
   DWIN_Draw_Line(GetColor(eeprom_settings.menu_split_line, Line_Color, true), 16, MBASE(row) + 33, 256, MBASE(row) + 33); // Draw Menu Line
 }
 
-inline void CrealityDWINClass::Draw_Checkbox(uint8_t row, bool value) {
-  #if ENABLED(CREALITY_DWIN_EXTUI_CUSTOM_ICONS) // Draw appropriate checkbox icon
+void CrealityDWINClass::Draw_Checkbox(uint8_t row, bool value) {
+  #if ENABLED(DWIN_CREALITY_LCD_CUSTOM_ICONS) // Draw appropriate checkbox icon
     DWIN_ICON_Show(ICON, (value ? ICON_Checkbox_T : ICON_Checkbox_F), 226, MBASE(row) - 3); 
   #else                                         // Draw a basic checkbox using rectangles and lines
     DWIN_Draw_Rectangle(1, Color_Bg_Black, 226, MBASE(row) - 3, 226 + 20, MBASE(row) - 3 + 20);
@@ -491,7 +489,7 @@ inline void CrealityDWINClass::Draw_Checkbox(uint8_t row, bool value) {
   #endif
 }
 
-inline void CrealityDWINClass::Draw_Menu(uint8_t menu, uint8_t select/*=0*/, uint8_t scroll/*=0*/) {
+void CrealityDWINClass::Draw_Menu(uint8_t menu, uint8_t select/*=0*/, uint8_t scroll/*=0*/) {
   if (active_menu!=menu) {
     last_menu = active_menu;
     if (process == Menu) last_selection = selection;
@@ -508,7 +506,7 @@ inline void CrealityDWINClass::Draw_Menu(uint8_t menu, uint8_t select/*=0*/, uin
   DWIN_Draw_Rectangle(1, GetColor(eeprom_settings.cursor_color, Rectangle_Color), 0, MBASE(selection-scrollpos) - 18, 14, MBASE(selection-scrollpos) + 33);
 }
 
-inline void CrealityDWINClass::Redraw_Menu(bool lastselection/*=false*/, bool lastmenu/*=false*/) {
+void CrealityDWINClass::Redraw_Menu(bool lastselection/*=false*/, bool lastmenu/*=false*/) {
   if (active_menu == MainMenu) {
     Draw_Main_Menu(selection);
   }
@@ -517,7 +515,7 @@ inline void CrealityDWINClass::Redraw_Menu(bool lastselection/*=false*/, bool la
   }
 }
 
-inline void CrealityDWINClass::Redraw_Screen() {
+void CrealityDWINClass::Redraw_Screen() {
   Redraw_Menu();
   Draw_Status_Area(true);
   Update_Status_Bar(true);
@@ -3002,11 +3000,11 @@ void CrealityDWINClass::Menu_Item_Handler(uint8_t menu, uint8_t item, bool draw/
           case ADVANCED_FILSENSORENABLED:
             if (draw) {
               Draw_Menu_Item(row, ICON_Extruder, (char*)"Filament Sensor");
-              Draw_Checkbox(row, ExtUI::getFilamentRunoutEnabled());
+              Draw_Checkbox(row, runout.enabled);
             }
             else {
-              ExtUI::setFilamentRunoutEnabled(!ExtUI::getFilamentRunoutEnabled());
-              Draw_Checkbox(row, ExtUI::getFilamentRunoutEnabled());
+              runout.enabled = !runout.enabled;
+              Draw_Checkbox(row, runout.enabled);
             }
             break;
           #if ENABLED(HAS_FILAMENT_RUNOUT_DISTANCE)
@@ -3122,9 +3120,9 @@ void CrealityDWINClass::Menu_Item_Handler(uint8_t menu, uint8_t item, bool draw/
               sprintf(row2, "%.2f m filament used", ps.filamentUsed / 1000);
               Draw_Menu_Item(INFO_PRINTCOUNT, ICON_HotendTemp, row1, row2, false, true);
 
-              ExtUI::getTotalPrintTime_str(buf);
+              duration_t(print_job_timer.getStats().printTime).toString(buf);
               sprintf(row1, "Printed: %s", buf);
-              ExtUI::getLongestPrint_str(buf);
+              duration_t(print_job_timer.getStats().longestPrint).toString(buf);
               sprintf(row2, "Longest: %s", buf);
               Draw_Menu_Item(INFO_PRINTTIME, ICON_PrintTime, row1, row2, false, true);
             #endif
@@ -3814,8 +3812,7 @@ void CrealityDWINClass::Menu_Item_Handler(uint8_t menu, uint8_t item, bool draw/
               mesh_x = GRID_MAX_POINTS_X - mesh_x - 1;
             }
 
-            const xy_uint8_t mesh_pos { mesh_x, mesh_y };
-            const float currval = ExtUI::getMeshPoint(mesh_pos);
+            const float currval = mesh_z_values[mesh_x][mesh_y];
 
             if (draw) {
               Draw_Menu_Item(row, ICON_Zoffset, (char*)"Goto Mesh Value");
@@ -3959,11 +3956,11 @@ void CrealityDWINClass::Menu_Item_Handler(uint8_t menu, uint8_t item, bool draw/
           case TUNE_FILSENSORENABLED:
             if (draw) {
               Draw_Menu_Item(row, ICON_Extruder, (char*)"Filament Sensor");
-              Draw_Checkbox(row, ExtUI::getFilamentRunoutEnabled());
+              Draw_Checkbox(row, runout.enabled);
             }
             else {
-              ExtUI::setFilamentRunoutEnabled(!ExtUI::getFilamentRunoutEnabled());
-              Draw_Checkbox(row, ExtUI::getFilamentRunoutEnabled());
+              runout.enabled = !runout.enabled;
+              Draw_Checkbox(row, runout.enabled);
             }
             break;
         #endif
@@ -4447,7 +4444,7 @@ void CrealityDWINClass::Confirm_Handler(const char * const msg) {
 
 /* Navigation and Control */
 
-inline void CrealityDWINClass::Main_Menu_Control() {
+void CrealityDWINClass::Main_Menu_Control() {
   ENCODER_DiffState encoder_diffState = Encoder_ReceiveAnalyze();
   if (encoder_diffState == ENCODER_DIFF_NO) return;
   if (encoder_diffState == ENCODER_DIFF_CW && selection < 3) {
@@ -4481,7 +4478,7 @@ inline void CrealityDWINClass::Main_Menu_Control() {
   DWIN_UpdateLCD();
 }
 
-inline void CrealityDWINClass::Menu_Control() {
+void CrealityDWINClass::Menu_Control() {
   ENCODER_DiffState encoder_diffState = Encoder_ReceiveAnalyze();
   if (encoder_diffState == ENCODER_DIFF_NO) return;
   if (encoder_diffState == ENCODER_DIFF_CW && selection < Get_Menu_Size(active_menu)) {
@@ -4509,7 +4506,7 @@ inline void CrealityDWINClass::Menu_Control() {
   DWIN_UpdateLCD();
 }
 
-inline void CrealityDWINClass::Value_Control() {
+void CrealityDWINClass::Value_Control() {
   ENCODER_DiffState encoder_diffState = Encoder_ReceiveAnalyze();
   if (encoder_diffState == ENCODER_DIFF_NO) return;
   if (encoder_diffState == ENCODER_DIFF_CW) {
@@ -4582,7 +4579,7 @@ inline void CrealityDWINClass::Value_Control() {
   }
 }
 
-inline void CrealityDWINClass::Option_Control() {
+void CrealityDWINClass::Option_Control() {
   ENCODER_DiffState encoder_diffState = Encoder_ReceiveAnalyze();
   if (encoder_diffState == ENCODER_DIFF_NO) return;
   if (encoder_diffState == ENCODER_DIFF_CW) {
@@ -4620,7 +4617,7 @@ inline void CrealityDWINClass::Option_Control() {
   DWIN_UpdateLCD();
 }
 
-inline void CrealityDWINClass::File_Control() {
+void CrealityDWINClass::File_Control() {
   ENCODER_DiffState encoder_diffState = Encoder_ReceiveAnalyze();
   static uint8_t filescrl = 0;
   if (encoder_diffState == ENCODER_DIFF_NO) {
@@ -4712,7 +4709,7 @@ inline void CrealityDWINClass::File_Control() {
   DWIN_UpdateLCD();
 }
 
-inline void CrealityDWINClass::Print_Screen_Control() {
+void CrealityDWINClass::Print_Screen_Control() {
   ENCODER_DiffState encoder_diffState = Encoder_ReceiveAnalyze();
   if (encoder_diffState == ENCODER_DIFF_NO) return;
   if (encoder_diffState == ENCODER_DIFF_CW && selection < 2) {
@@ -4766,7 +4763,7 @@ inline void CrealityDWINClass::Print_Screen_Control() {
   DWIN_UpdateLCD();
 }
 
-inline void CrealityDWINClass::Popup_Control() {
+void CrealityDWINClass::Popup_Control() {
   ENCODER_DiffState encoder_diffState = Encoder_ReceiveAnalyze();
   if (encoder_diffState == ENCODER_DIFF_NO) return;
   if (encoder_diffState == ENCODER_DIFF_CW && selection < 1) {
@@ -4816,7 +4813,7 @@ inline void CrealityDWINClass::Popup_Control() {
       case Stop:
         if (selection==0) {
           if (sdprint) {
-            ExtUI::stopPrint();
+            ui.abort_print();
             thermalManager.zero_fan_speeds();
             thermalManager.disable_all_heaters();
           }
@@ -4897,7 +4894,7 @@ inline void CrealityDWINClass::Popup_Control() {
   DWIN_UpdateLCD();
 }
 
-inline void CrealityDWINClass::Confirm_Control() {
+void CrealityDWINClass::Confirm_Control() {
   ENCODER_DiffState encoder_diffState = Encoder_ReceiveAnalyze();
   if (encoder_diffState == ENCODER_DIFF_NO) return;
   if (encoder_diffState == ENCODER_DIFF_ENTER) {
@@ -5042,6 +5039,11 @@ void CrealityDWINClass::Stop_Print() {
 }
 
 void CrealityDWINClass::Update() {
+  if (print_job_timer.isRunning() != printing) {
+    if (!printing) Start_Print(card.isFileOpen());
+    else Stop_Print();
+  }
+
   Screen_Update();
 
   switch(process) {
@@ -5094,8 +5096,8 @@ void CrealityDWINClass::Screen_Update() {
       Draw_Print_ProgressBar();
       Draw_Print_ProgressElapsed();
       Draw_Print_ProgressRemain();
-      if (ExtUI::isPrintingPaused() != paused) {
-        paused = ExtUI::isPrintingPaused();
+      if (print_job_timer.isPaused() != paused) {
+        paused = print_job_timer.isPaused();
         Print_Screen_Icons();
       }
     }
@@ -5203,23 +5205,6 @@ void CrealityDWINClass::Screen_Update() {
   }
 }
 
-void CrealityDWINClass::Startup() {
-  delay(800);
-  SERIAL_ECHOPGM("\nDWIN handshake ");
-  if (DWIN_Handshake()) SERIAL_ECHOLNPGM("ok."); else SERIAL_ECHOLNPGM("error.");
-  DWIN_Frame_SetDir(1); // Orientation 90°
-  DWIN_UpdateLCD();     // Show bootscreen (first image)
-  Encoder_Configuration();
-  for (uint16_t t = 0; t <= 100; t += 2) {
-    DWIN_ICON_Show(ICON, ICON_Bar, 15, 260);
-    DWIN_Draw_Rectangle(1, Color_Bg_Black, 15 + t * 242 / 100, 260, 257, 280);
-    DWIN_UpdateLCD();
-    delay(20);
-  }
-  DWIN_JPG_CacheTo1(Language_English);
-  Redraw_Screen();
-}
-
 void CrealityDWINClass::AudioFeedback(const bool success/*=true*/) {
   if (success) {
     buzzer.tone(100, 659);
@@ -5230,15 +5215,15 @@ void CrealityDWINClass::AudioFeedback(const bool success/*=true*/) {
     buzzer.tone(40, 440);
 }
 
-void CrealityDWINClass::SDCardInsert() { card.cdroot(); }
-
-void CrealityDWINClass::Save_Settings() {
+void CrealityDWINClass::Save_Settings(char *buff) {
   #if ENABLED(AUTO_BED_LEVELING_UBL)
     eeprom_settings.tilt_grid_size = mesh_conf.tilt_grid-1;
   #endif
+  memcpy(buff, &CrealityDWIN.eeprom_settings, min(sizeof(CrealityDWIN.eeprom_settings), eeprom_data_size));
 }
 
-void CrealityDWINClass::Load_Settings() {
+void CrealityDWINClass::Load_Settings(const char *buff) {
+  memcpy(&CrealityDWIN.eeprom_settings, buff, min(sizeof(CrealityDWIN.eeprom_settings), eeprom_data_size));
   #if ENABLED(AUTO_BED_LEVELING_UBL)
     mesh_conf.tilt_grid = eeprom_settings.tilt_grid_size+1;
   #endif
