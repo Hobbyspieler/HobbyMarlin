@@ -21,11 +21,10 @@
  */
 #pragma once
 
-#include "../inc/MarlinConfig.h"
-
 #include "../module/motion.h"
-
 #include "buttons.h"
+
+#include "../inc/MarlinConfig.h"
 
 #if HAS_BUZZER
   #include "../libs/buzzer.h"
@@ -57,7 +56,6 @@
 
 #if ENABLED(ADVANCED_PAUSE_FEATURE) && EITHER(HAS_LCD_MENU, EXTENSIBLE_UI) || BOTH(DWIN_CREALITY_LCD, ADVANCED_PAUSE_FEATURE)
   #include "../feature/pause.h"
-  #include "../module/motion.h" // for active_extruder
 #endif
 
 #define START_OF_UTF8_CHAR(C) (((C) & 0xC0u) != 0x80U)
@@ -109,7 +107,7 @@
   };
 #endif
 
-#if PREHEAT_COUNT
+#if HAS_PREHEAT
   typedef struct {
     #if HAS_HOTEND
       celsius_t hotend_temp;
@@ -299,6 +297,17 @@ public:
   #endif
 
   #if HAS_STATUS_MESSAGE
+
+    #if HAS_WIRED_LCD
+      #if ENABLED(STATUS_MESSAGE_SCROLLING)
+        #define MAX_MESSAGE_LENGTH _MAX(LONG_FILENAME_LENGTH, MAX_LANG_CHARSIZE * 2 * (LCD_WIDTH))
+      #else
+        #define MAX_MESSAGE_LENGTH (MAX_LANG_CHARSIZE * (LCD_WIDTH))
+      #endif
+    #else
+      #define MAX_MESSAGE_LENGTH 63
+    #endif
+
     static char status_message[];
     static uint8_t alert_level; // Higher levels block lower levels
 
@@ -363,22 +372,22 @@ public:
       #endif
 
       #if HAS_MARLINUI_U8GLIB
-
         static void set_font(const MarlinFont font_nr);
+      #elif IS_DWIN_MARLINUI
+        static void set_font(const uint8_t font_nr);
+      #endif
 
-      #else
-
+      #if HAS_MARLINUI_HD44780
         static void set_custom_characters(const HD44780CharSet screen_charset=CHARSET_INFO);
+      #endif
 
-        #if ENABLED(LCD_PROGRESS_BAR)
-          static millis_t progress_bar_ms;  // Start time for the current progress bar cycle
-          static void draw_progress_bar(const uint8_t percent);
-          #if PROGRESS_MSG_EXPIRE > 0
-            static millis_t expire_status_ms; // = 0
-            FORCE_INLINE static void reset_progress_bar_timeout() { expire_status_ms = 0; }
-          #endif
+      #if ENABLED(LCD_PROGRESS_BAR) && !HAS_MARLINUI_U8GLIB
+        static millis_t progress_bar_ms;  // Start time for the current progress bar cycle
+        static void draw_progress_bar(const uint8_t percent);
+        #if PROGRESS_MSG_EXPIRE > 0
+          static millis_t expire_status_ms; // = 0
+          FORCE_INLINE static void reset_progress_bar_timeout() { expire_status_ms = 0; }
         #endif
-
       #endif
 
       static uint8_t lcd_status_update_delay;
@@ -393,11 +402,15 @@ public:
         static millis_t next_filament_display;
       #endif
 
+      #if HAS_TOUCH_SLEEP
+        static void wakeup_screen();
+      #endif
+
       static void quick_feedback(const bool clear_buttons=true);
       #if HAS_BUZZER
         static void completion_feedback(const bool good=true);
       #else
-        static inline void completion_feedback(const bool=true) {}
+        static inline void completion_feedback(const bool=true) { TERN_(HAS_TOUCH_SLEEP, wakeup_screen()); }
       #endif
 
       #if DISABLED(LIGHTWEIGHT_UI)
@@ -423,6 +436,10 @@ public:
       static constexpr bool drawing_screen = false, first_page = true;
     #endif
 
+    #if IS_DWIN_MARLINUI
+      static bool did_first_redraw;
+    #endif
+
     static bool get_blink();
     static void kill_screen(PGM_P const lcd_error, PGM_P const lcd_component);
     static void draw_kill_screen();
@@ -445,9 +462,16 @@ public:
     static const char * scrolled_filename(CardReader &theCard, const uint8_t maxlen, uint8_t hash, const bool doScroll);
   #endif
 
-  #if PREHEAT_COUNT
+  #if HAS_PREHEAT
+    enum PreheatMask : uint8_t { PM_HOTEND = _BV(0), PM_BED = _BV(1), PM_FAN = _BV(2), PM_CHAMBER = _BV(3) };
     static preheat_t material_preset[PREHEAT_COUNT];
     static PGM_P get_preheat_label(const uint8_t m);
+    static void apply_preheat(const uint8_t m, const uint8_t pmask, const uint8_t e=active_extruder);
+    static inline void preheat_set_fan(const uint8_t m) { TERN_(HAS_FAN, apply_preheat(m, PM_FAN)); }
+    static inline void preheat_hotend(const uint8_t m, const uint8_t e=active_extruder) { TERN_(HAS_HOTEND, apply_preheat(m, PM_HOTEND)); }
+    static inline void preheat_hotend_and_fan(const uint8_t m, const uint8_t e=active_extruder) { preheat_hotend(m, e); preheat_set_fan(m); }
+    static inline void preheat_bed(const uint8_t m) { TERN_(HAS_HEATED_BED, apply_preheat(m, PM_BED)); }
+    static inline void preheat_all(const uint8_t m) { apply_preheat(m, 0xFF); }
   #endif
 
   #if SCREENS_CAN_TIME_OUT

@@ -130,7 +130,7 @@ fil_change_settings_t fc_settings[EXTRUDERS];
  */
 static bool ensure_safe_temperature(const bool wait=true, const PauseMode mode=PAUSE_MODE_SAME) {
   DEBUG_SECTION(est, "ensure_safe_temperature", true);
-  DEBUG_ECHOLNPAIR("... wait:", wait, " mode:", mode);
+  DEBUG_ECHOLNPGM("... wait:", wait, " mode:", mode);
 
   #if ENABLED(PREVENT_COLD_EXTRUSION)
     if (!DEBUGGING(DRYRUN) && thermalManager.targetTooColdToExtrude(active_extruder))
@@ -176,7 +176,7 @@ bool load_filament(const_float_t slow_load_length/*=0*/, const_float_t fast_load
                    DXC_ARGS
 ) {
   DEBUG_SECTION(lf, "load_filament", true);
-  DEBUG_ECHOLNPAIR("... slowlen:", slow_load_length, " fastlen:", fast_load_length, " purgelen:", purge_length, " maxbeep:", max_beep_count, " showlcd:", show_lcd, " pauseforuser:", pause_for_user, " pausemode:", mode DXC_SAY);
+  DEBUG_ECHOLNPGM("... slowlen:", slow_load_length, " fastlen:", fast_load_length, " purgelen:", purge_length, " maxbeep:", max_beep_count, " showlcd:", show_lcd, " pauseforuser:", pause_for_user, " pausemode:", mode DXC_SAY);
 
   if (!ensure_safe_temperature(false, mode)) {
     if (show_lcd) ui.pause_show_message(PAUSE_MESSAGE_STATUS, mode);
@@ -211,6 +211,8 @@ bool load_filament(const_float_t slow_load_length/*=0*/, const_float_t fast_load
     const bool saved_ext_dup_mode = extruder_duplication_enabled;
     set_duplication_enabled(false, DXC_ext);
   #endif
+
+  TERN_(BELTPRINTER, do_blocking_move_to_xy(0.00, 50.00));
 
   // Slow Load filament
   if (slow_load_length) unscaled_e_move(slow_load_length, FILAMENT_CHANGE_SLOW_LOAD_FEEDRATE);
@@ -283,8 +285,8 @@ bool load_filament(const_float_t slow_load_length/*=0*/, const_float_t fast_load
  * send current back to their board, potentially frying it.
  */
 inline void disable_active_extruder() {
-  #if HAS_E_STEPPER_ENABLE
-    disable_e_stepper(active_extruder);
+  #if HAS_EXTRUDERS
+    stepper.DISABLE_EXTRUDER(active_extruder);
     safe_delay(100);
   #endif
 }
@@ -306,7 +308,7 @@ bool unload_filament(const_float_t unload_length, const bool show_lcd/*=false*/,
                      #endif
 ) {
   DEBUG_SECTION(uf, "unload_filament", true);
-  DEBUG_ECHOLNPAIR("... unloadlen:", unload_length, " showlcd:", show_lcd, " mode:", mode
+  DEBUG_ECHOLNPGM("... unloadlen:", unload_length, " showlcd:", show_lcd, " mode:", mode
     #if BOTH(FILAMENT_UNLOAD_ALL_EXTRUDERS, MIXING_EXTRUDER)
       , " mixmult:", mix_multiplier
     #endif
@@ -370,7 +372,7 @@ uint8_t did_pause_print = 0;
 
 bool pause_print(const_float_t retract, const xyz_pos_t &park_point, const bool show_lcd/*=false*/, const_float_t unload_length/*=0*/ DXC_ARGS) {
   DEBUG_SECTION(pp, "pause_print", true);
-  DEBUG_ECHOLNPAIR("... park.x:", park_point.x, " y:", park_point.y, " z:", park_point.z, " unloadlen:", unload_length, " showlcd:", show_lcd DXC_SAY);
+  DEBUG_ECHOLNPGM("... park.x:", park_point.x, " y:", park_point.y, " z:", park_point.z, " unloadlen:", unload_length, " showlcd:", show_lcd DXC_SAY);
 
   UNUSED(show_lcd);
 
@@ -421,7 +423,7 @@ bool pause_print(const_float_t retract, const xyz_pos_t &park_point, const bool 
 
   // Initial retract before move to filament change position
   if (retract && thermalManager.hotEnoughToExtrude(active_extruder)) {
-    DEBUG_ECHOLNPAIR("... retract:", retract);
+    DEBUG_ECHOLNPGM("... retract:", retract);
     unscaled_e_move(retract, PAUSE_PARK_RETRACT_FEEDRATE);
   }
 
@@ -463,16 +465,16 @@ bool pause_print(const_float_t retract, const xyz_pos_t &park_point, const bool 
 
 void show_continue_prompt(const bool is_reload) {
   DEBUG_SECTION(scp, "pause_print", true);
-  DEBUG_ECHOLNPAIR("... is_reload:", is_reload);
+  DEBUG_ECHOLNPGM("... is_reload:", is_reload);
 
   ui.pause_show_message(is_reload ? PAUSE_MESSAGE_INSERT : PAUSE_MESSAGE_WAITING);
   SERIAL_ECHO_START();
-  SERIAL_ECHOPGM_P(is_reload ? PSTR(_PMSG(STR_FILAMENT_CHANGE_INSERT) "\n") : PSTR(_PMSG(STR_FILAMENT_CHANGE_WAIT) "\n"));
+  SERIAL_ECHOF(is_reload ? F(_PMSG(STR_FILAMENT_CHANGE_INSERT) "\n") : F(_PMSG(STR_FILAMENT_CHANGE_WAIT) "\n"));
 }
 
 void wait_for_confirmation(const bool is_reload/*=false*/, const int8_t max_beep_count/*=0*/ DXC_ARGS) {
   DEBUG_SECTION(wfc, "wait_for_confirmation", true);
-  DEBUG_ECHOLNPAIR("... is_reload:", is_reload, " maxbeep:", max_beep_count DXC_SAY);
+  DEBUG_ECHOLNPGM("... is_reload:", is_reload, " maxbeep:", max_beep_count DXC_SAY);
 
   bool nozzle_timed_out = false;
 
@@ -513,7 +515,7 @@ void wait_for_confirmation(const bool is_reload/*=false*/, const int8_t max_beep
 
       TERN_(EXTENSIBLE_UI, ExtUI::onUserConfirmRequired_P(GET_TEXT(MSG_HEATER_TIMEOUT)));
 
-      wait_for_user_response(0, true); // Wait for LCD click or M108
+      TERN_(HAS_RESUME_CONTINUE, wait_for_user_response(0, true)); // Wait for LCD click or M108
 
       TERN_(HOST_PROMPT_SUPPORT, host_prompt_do(PROMPT_INFO, GET_TEXT(MSG_REHEATING)));
 
@@ -568,10 +570,10 @@ void wait_for_confirmation(const bool is_reload/*=false*/, const int8_t max_beep
  */
 void resume_print(const_float_t slow_load_length/*=0*/, const_float_t fast_load_length/*=0*/, const_float_t purge_length/*=ADVANCED_PAUSE_PURGE_LENGTH*/, const int8_t max_beep_count/*=0*/, const celsius_t targetTemp/*=0*/ DXC_ARGS) {
   DEBUG_SECTION(rp, "resume_print", true);
-  DEBUG_ECHOLNPAIR("... slowlen:", slow_load_length, " fastlen:", fast_load_length, " purgelen:", purge_length, " maxbeep:", max_beep_count, " targetTemp:", targetTemp DXC_SAY);
+  DEBUG_ECHOLNPGM("... slowlen:", slow_load_length, " fastlen:", fast_load_length, " purgelen:", purge_length, " maxbeep:", max_beep_count, " targetTemp:", targetTemp DXC_SAY);
 
   /*
-  SERIAL_ECHOLNPAIR(
+  SERIAL_ECHOLNPGM(
     "start of resume_print()\ndual_x_carriage_mode:", dual_x_carriage_mode,
     "\nextruder_duplication_enabled:", extruder_duplication_enabled,
     "\nactive_extruder:", active_extruder,
@@ -602,7 +604,7 @@ void resume_print(const_float_t slow_load_length/*=0*/, const_float_t fast_load_
   ui.pause_show_message(PAUSE_MESSAGE_RESUME);
 
   // Check Temperature before moving hotend
-  ensure_safe_temperature();
+  ensure_safe_temperature(DISABLED(BELTPRINTER));
 
   // Retract to prevent oozing
   unscaled_e_move(-(PAUSE_PARK_RETRACT_LENGTH), feedRate_t(PAUSE_PARK_RETRACT_FEEDRATE));

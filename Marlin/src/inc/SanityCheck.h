@@ -43,7 +43,7 @@
 #define TEST2 1
 #define TEST3 0
 #define TEST4 true
-#if ENABLED(TEST0) || !ENABLED(TEST2) || ENABLED(TEST3)
+#if ENABLED(TEST0) || !ENABLED(TEST2) || ENABLED(TEST3) || !ENABLED(TEST1, TEST2, TEST4)
   #error "ENABLED is borked!"
 #endif
 #if BOTH(TEST0, TEST1)
@@ -566,15 +566,35 @@
   #error "CUSTOM_USER_MENUS has been replaced by CUSTOM_MENU_MAIN and CUSTOM_MENU_CONFIG."
 #elif defined(MKS_LCD12864)
   #error "MKS_LCD12864 is now MKS_LCD12864A or MKS_LCD12864B."
+#elif defined(DOGM_SD_PERCENT)
+  #error "DOGM_SD_PERCENT is now SHOW_SD_PERCENT."
 #elif defined(NEOPIXEL_BKGD_LED_INDEX)
   #error "NEOPIXEL_BKGD_LED_INDEX is now NEOPIXEL_BKGD_INDEX_FIRST."
 #elif defined(TEMP_SENSOR_1_AS_REDUNDANT)
   #error "TEMP_SENSOR_1_AS_REDUNDANT is now TEMP_SENSOR_REDUNDANT, with associated TEMP_SENSOR_REDUNDANT_* config."
 #elif defined(MAX_REDUNDANT_TEMP_SENSOR_DIFF)
   #error "MAX_REDUNDANT_TEMP_SENSOR_DIFF is now TEMP_SENSOR_REDUNDANT_MAX_DIFF"
-#elif MOTHERBOARD == BOARD_DUE3DOM_MINI && PIN_EXISTS(TEMP_2) && DISABLED(TEMP_SENSOR_BOARD)
+#elif defined(LCD_ALEPHOBJECTS_CLCD_UI)
+  #error "LCD_ALEPHOBJECTS_CLCD_UI is now LCD_LULZBOT_CLCD_UI."
+#elif defined(MIN_ARC_SEGMENTS)
+  #error "MIN_ARC_SEGMENTS is now MIN_CIRCLE_SEGMENTS."
+#elif defined(ARC_SEGMENTS_PER_R)
+  #error "ARC_SUPPORT no longer uses ARC_SEGMENTS_PER_R."
+#elif ENABLED(ARC_SUPPORT) && (!defined(MIN_ARC_SEGMENT_MM) || !defined(MAX_ARC_SEGMENT_MM))
+  #error "ARC_SUPPORT now requires MIN_ARC_SEGMENT_MM and MAX_ARC_SEGMENT_MM."
+#elif defined(SPINDLE_LASER_PWM)
+  #error "SPINDLE_LASER_PWM (true) is now set with SPINDLE_LASER_USE_PWM (enabled)."
+#elif ANY(IS_RAMPS_EEB, IS_RAMPS_EEF, IS_RAMPS_EFB, IS_RAMPS_EFF, IS_RAMPS_SF)
+  #error "The IS_RAMPS_* conditionals (for heater/fan/bed pins) are now called FET_ORDER_*."
+#elif defined(PROBE_TEMP_COMPENSATION)
+  #error "PROBE_TEMP_COMPENSATION is now set using the PTC_PROBE, PTC_BED, PTC_HOTEND options."
+#elif defined(BTC_PROBE_TEMP)
+  #error "BTC_PROBE_TEMP is now PTC_PROBE_TEMP."
+#endif
+
+#if MB(DUE3DOM_MINI) && PIN_EXISTS(TEMP_2) && DISABLED(TEMP_SENSOR_BOARD)
   #warning "Onboard temperature sensor for BOARD_DUE3DOM_MINI has moved from TEMP_SENSOR_2 (TEMP_2_PIN) to TEMP_SENSOR_BOARD (TEMP_BOARD_PIN)."
-#elif MOTHERBOARD == BOARD_BTT_SKR_E3_TURBO && PIN_EXISTS(TEMP_2) && DISABLED(TEMP_SENSOR_BOARD)
+#elif MB(BTT_SKR_E3_TURBO) && PIN_EXISTS(TEMP_2) && DISABLED(TEMP_SENSOR_BOARD)
   #warning "Onboard temperature sensor for BOARD_BTT_SKR_E3_TURBO has moved from TEMP_SENSOR_2 (TEMP_2_PIN) to TEMP_SENSOR_BOARD (TEMP_BOARD_PIN)."
 #endif
 
@@ -584,44 +604,60 @@ static_assert(COUNT(arm) == LOGICAL_AXES, "AXIS_RELATIVE_MODES must contain " _L
 /**
  * Probe temp compensation requirements
  */
-
-#if ENABLED(PROBE_TEMP_COMPENSATION)
-  #if defined(PTC_PARK_POS_X) || defined(PTC_PARK_POS_Y) || defined(PTC_PARK_POS_Z)
-    #error "PTC_PARK_POS_[XYZ] is now PTC_PARK_POS (array)."
-  #elif !defined(PTC_PARK_POS)
-    #error "PROBE_TEMP_COMPENSATION requires PTC_PARK_POS."
-  #elif defined(PTC_PROBE_POS_X) || defined(PTC_PROBE_POS_Y)
-    #error "PTC_PROBE_POS_[XY] is now PTC_PROBE_POS (array)."
-  #elif !defined(PTC_PROBE_POS)
-    #error "PROBE_TEMP_COMPENSATION requires PTC_PROBE_POS."
+#if HAS_PTC
+  #if TEMP_SENSOR_PROBE && TEMP_SENSOR_BED
+    #if defined(PTC_PARK_POS_X) || defined(PTC_PARK_POS_Y) || defined(PTC_PARK_POS_Z)
+      #error "PTC_PARK_POS_[XYZ] is now PTC_PARK_POS (array)."
+    #elif !defined(PTC_PARK_POS)
+      #error "PTC_PARK_POS is required for Probe Temperature Compensation."
+    #elif defined(PTC_PROBE_POS_X) || defined(PTC_PROBE_POS_Y)
+      #error "PTC_PROBE_POS_[XY] is now PTC_PROBE_POS (array)."
+    #elif !defined(PTC_PROBE_POS)
+      #error "PTC_PROBE_POS is required for Probe Temperature Compensation."
+    #endif
   #endif
 
-  #ifdef PTC_SAMPLE_START
-    constexpr auto _ptc_sample_start = PTC_SAMPLE_START;
+  #ifdef PTC_PROBE_START
+    constexpr auto _ptc_sample_start = PTC_PROBE_START;
     constexpr decltype(_ptc_sample_start) _test_ptc_sample_start = 12.3f;
-    static_assert(_test_ptc_sample_start != 12.3f, "PTC_SAMPLE_START must be a whole number.");
+    static_assert(_test_ptc_sample_start != 12.3f, "PTC_PROBE_START must be a whole number.");
   #endif
-  #ifdef PTC_SAMPLE_RES
-    constexpr auto _ptc_sample_res = PTC_SAMPLE_RES;
+  #ifdef PTC_PROBE_RES
+    constexpr auto _ptc_sample_res = PTC_PROBE_RES;
     constexpr decltype(_ptc_sample_res) _test_ptc_sample_res = 12.3f;
-    static_assert(_test_ptc_sample_res != 12.3f, "PTC_SAMPLE_RES must be a whole number.");
+    static_assert(_test_ptc_sample_res != 12.3f, "PTC_PROBE_RES must be a whole number.");
   #endif
-  #ifdef BTC_SAMPLE_START
-    constexpr auto _btc_sample_start = BTC_SAMPLE_START;
+  #ifdef PTC_BED_START
+    constexpr auto _btc_sample_start = PTC_BED_START;
     constexpr decltype(_btc_sample_start) _test_btc_sample_start = 12.3f;
-    static_assert(_test_btc_sample_start != 12.3f, "BTC_SAMPLE_START must be a whole number.");
+    static_assert(_test_btc_sample_start != 12.3f, "PTC_BED_START must be a whole number.");
   #endif
-  #ifdef BTC_SAMPLE_RES
-    constexpr auto _btc_sample_res = BTC_SAMPLE_RES;
+  #ifdef PTC_BED_RES
+    constexpr auto _btc_sample_res = PTC_BED_RES;
     constexpr decltype(_btc_sample_res) _test_btc_sample_res = 12.3f;
-    static_assert(_test_btc_sample_res != 12.3f, "BTC_SAMPLE_RES must be a whole number.");
+    static_assert(_test_btc_sample_res != 12.3f, "PTC_BED_RES must be a whole number.");
   #endif
-  #ifdef BTC_PROBE_TEMP
-    constexpr auto _btc_probe_temp = BTC_PROBE_TEMP;
+  #ifdef PTC_PROBE_TEMP
+    constexpr auto _btc_probe_temp = PTC_PROBE_TEMP;
     constexpr decltype(_btc_probe_temp) _test_btc_probe_temp = 12.3f;
-    static_assert(_test_btc_probe_temp != 12.3f, "BTC_PROBE_TEMP must be a whole number.");
+    static_assert(_test_btc_probe_temp != 12.3f, "PTC_PROBE_TEMP must be a whole number.");
   #endif
-#endif
+  #if ENABLED(PTC_HOTEND)
+    #if EXTRUDERS != 1
+      #error "PTC_HOTEND only works with a single extruder."
+    #endif
+    #ifdef PTC_HOTEND_START
+      constexpr auto _etc_sample_start = PTC_HOTEND_START;
+      constexpr decltype(_etc_sample_start) _test_etc_sample_start = 12.3f;
+      static_assert(_test_etc_sample_start != 12.3f, "PTC_HOTEND_START must be a whole number.");
+    #endif
+    #ifdef PTC_HOTEND_RES
+      constexpr auto _etc_sample_res = PTC_HOTEND_RES;
+      constexpr decltype(_etc_sample_res) _test_etc_sample_res = 12.3f;
+      static_assert(_test_etc_sample_res != 12.3f, "PTC_HOTEND_RES must be a whole number.");
+    #endif
+  #endif
+#endif // HAS_PTC
 
 /**
  * Marlin release, version and default string
@@ -810,7 +846,7 @@ static_assert(Y_MAX_LENGTH >= Y_BED_SIZE, "Movement bounds (Y_MIN_POS, Y_MAX_POS
 /**
  * LCD Lightweight Screen Style
  */
-#if ENABLED(LIGHTWEIGHT_UI) && DISABLED(U8GLIB_ST7920)
+#if ENABLED(LIGHTWEIGHT_UI) && !IS_U8GLIB_ST7920
   #error "LIGHTWEIGHT_UI requires a U8GLIB_ST7920-based display."
 #endif
 
@@ -1171,6 +1207,8 @@ static_assert(Y_MAX_LENGTH >= Y_BED_SIZE, "Movement bounds (Y_MIN_POS, Y_MAX_POS
     #error "Please select either MIXING_EXTRUDER or SWITCHING_EXTRUDER, not both."
   #elif ENABLED(SINGLENOZZLE)
     #error "MIXING_EXTRUDER is incompatible with SINGLENOZZLE."
+  #elif ENABLED(DISABLE_INACTIVE_EXTRUDER)
+    #error "MIXING_EXTRUDER is incompatible with DISABLE_INACTIVE_EXTRUDER."
   #endif
 #endif
 
@@ -1197,6 +1235,10 @@ static_assert(Y_MAX_LENGTH >= Y_BED_SIZE, "Movement bounds (Y_MIN_POS, Y_MAX_POS
   );
   #if ENABLED(S_CURVE_ACCELERATION) && DISABLED(EXPERIMENTAL_SCURVE)
     #error "LIN_ADVANCE and S_CURVE_ACCELERATION may not play well together! Enable EXPERIMENTAL_SCURVE to continue."
+  #elif ENABLED(DIRECT_STEPPING)
+    #error "DIRECT_STEPPING is incompatible with LIN_ADVANCE. Enable in external planner if possible."
+  #elif NONE(HAS_JUNCTION_DEVIATION, ALLOW_LOW_EJERK) && defined(DEFAULT_EJERK)
+    static_assert(DEFAULT_EJERK >= 10, "It is strongly recommended to set DEFAULT_EJERK >= 10 when using LIN_ADVANCE. Enable ALLOW_LOW_EJERK to bypass this alert (e.g., for direct drive).");
   #endif
 #endif
 
@@ -1210,7 +1252,7 @@ static_assert(Y_MAX_LENGTH >= Y_BED_SIZE, "Movement bounds (Y_MIN_POS, Y_MAX_POS
 /**
  * (Magnetic) Parking Extruder requirements
  */
-#if ANY(PARKING_EXTRUDER, MAGNETIC_PARKING_EXTRUDER)
+#if EITHER(PARKING_EXTRUDER, MAGNETIC_PARKING_EXTRUDER)
   #if ENABLED(EXT_SOLENOID)
     #error "(MAGNETIC_)PARKING_EXTRUDER and EXT_SOLENOID are incompatible. (Pins are used twice.)"
   #elif EXTRUDERS != 2
@@ -1311,8 +1353,8 @@ static_assert(Y_MAX_LENGTH >= Y_BED_SIZE, "Movement bounds (Y_MIN_POS, Y_MAX_POS
 /**
  * Servo deactivation depends on servo endstops, switching nozzle, or switching extruder
  */
-#if ENABLED(DEACTIVATE_SERVOS_AFTER_MOVE) && !HAS_Z_SERVO_PROBE && !defined(SWITCHING_NOZZLE_SERVO_NR) && !defined(SWITCHING_EXTRUDER_SERVO_NR) && !defined(SWITCHING_TOOLHEAD_SERVO_NR)
-  #error "Z_PROBE_SERVO_NR, switching nozzle, switching toolhead or switching extruder is required for DEACTIVATE_SERVOS_AFTER_MOVE."
+#if ENABLED(DEACTIVATE_SERVOS_AFTER_MOVE) && NONE(HAS_Z_SERVO_PROBE, POLARGRAPH) && !defined(SWITCHING_NOZZLE_SERVO_NR) && !defined(SWITCHING_EXTRUDER_SERVO_NR) && !defined(SWITCHING_TOOLHEAD_SERVO_NR)
+  #error "Z_PROBE_SERVO_NR, switching nozzle, switching toolhead, switching extruder, or POLARGRAPH is required for DEACTIVATE_SERVOS_AFTER_MOVE."
 #endif
 
 /**
@@ -1366,20 +1408,38 @@ static_assert(Y_MAX_LENGTH >= Y_BED_SIZE, "Movement bounds (Y_MIN_POS, Y_MAX_POS
 #if LINEAR_AXES >= 4
   #if AXIS4_NAME != 'A' && AXIS4_NAME != 'B' && AXIS4_NAME != 'C' && AXIS4_NAME != 'U' && AXIS4_NAME != 'V' && AXIS4_NAME != 'W'
     #error "AXIS4_NAME can only be one of 'A', 'B', 'C', 'U', 'V', or 'W'."
+  #elif !defined(I_MIN_POS) || !defined(I_MAX_POS)
+    #error "I_MIN_POS and I_MAX_POS are required with LINEAR_AXES >= 4."
+  #elif !defined(I_HOME_DIR)
+    #error "I_HOME_DIR is required with LINEAR_AXES >= 4."
+  #elif HAS_I_ENABLE && !defined(I_ENABLE_ON)
+    #error "I_ENABLE_ON is required for your I driver with LINEAR_AXES >= 4."
   #endif
 #endif
 #if LINEAR_AXES >= 5
-  #if AXIS5_NAME == AXIS4_NAME || AXIS5_NAME == AXIS6_NAME
-    #error "AXIS5_NAME must be different from AXIS4_NAME and AXIS6_NAME"
+  #if AXIS5_NAME == AXIS4_NAME
+    #error "AXIS5_NAME must be unique."
   #elif AXIS5_NAME != 'A' && AXIS5_NAME != 'B' && AXIS5_NAME != 'C' && AXIS5_NAME != 'U' && AXIS5_NAME != 'V' && AXIS5_NAME != 'W'
     #error "AXIS5_NAME can only be one of 'A', 'B', 'C', 'U', 'V', or 'W'."
+  #elif !defined(J_MIN_POS) || !defined(J_MAX_POS)
+    #error "J_MIN_POS and J_MAX_POS are required with LINEAR_AXES >= 5."
+  #elif !defined(J_HOME_DIR)
+    #error "J_HOME_DIR is required with LINEAR_AXES >= 5."
+  #elif HAS_J_ENABLE && !defined(J_ENABLE_ON)
+    #error "J_ENABLE_ON is required for your J driver with LINEAR_AXES >= 5."
   #endif
 #endif
 #if LINEAR_AXES >= 6
   #if AXIS6_NAME == AXIS5_NAME || AXIS6_NAME == AXIS4_NAME
-    #error "AXIS6_NAME must be different from AXIS5_NAME and AXIS4_NAME."
+    #error "AXIS6_NAME must be unique."
   #elif AXIS6_NAME != 'A' && AXIS6_NAME != 'B' && AXIS6_NAME != 'C' && AXIS6_NAME != 'U' && AXIS6_NAME != 'V' && AXIS6_NAME != 'W'
     #error "AXIS6_NAME can only be one of 'A', 'B', 'C', 'U', 'V', or 'W'."
+  #elif !defined(K_MIN_POS) || !defined(K_MAX_POS)
+    #error "K_MIN_POS and K_MAX_POS are required with LINEAR_AXES >= 6."
+  #elif !defined(K_HOME_DIR)
+    #error "K_HOME_DIR is required with LINEAR_AXES >= 6."
+  #elif HAS_K_ENABLE && !defined(K_ENABLE_ON)
+    #error "K_ENABLE_ON is required for your K driver with LINEAR_AXES >= 6."
   #endif
 #endif
 
@@ -1420,6 +1480,13 @@ static_assert(Y_MAX_LENGTH >= Y_BED_SIZE, "Movement bounds (Y_MIN_POS, Y_MAX_POS
  */
 #if HAS_JUNCTION_DEVIATION && IS_KINEMATIC
   #error "CLASSIC_JERK is required for DELTA and SCARA."
+#endif
+
+/**
+ * Some things should not be used on Belt Printers
+ */
+#if BOTH(BELTPRINTER, HAS_LEVELING)
+  #error "Bed Leveling is not compatible with BELTPRINTER."
 #endif
 
 /**
@@ -1475,10 +1542,34 @@ static_assert(Y_MAX_LENGTH >= Y_BED_SIZE, "Movement bounds (Y_MIN_POS, Y_MAX_POS
   #endif
 
   #if ENABLED(BLTOUCH)
+
+    // BLTouch can't run in 5V mode with a 3.3V probe pin
+    #if ENABLED(BLTOUCH_SET_5V_MODE)
+      #define _5V(P,A,B) WITHIN(P,A,B)
+      #ifdef STM32F1            // STM32F103 5V-tolerant pins
+        #define _IS_5V_TOLERANT(P) (_5V(P,PA8,PA15) || _5V(P,PB2,PB15) || _5V(P,PC6,PC12) || _5V(P,PD0,PD15) || _5V(P,PE0,PE15) || _5V(P,PF0,PF5) || _5V(P,PF11,PF15))
+      #elif defined(ARDUINO_ARCH_SAM)
+        #define _IS_5V_TOLERANT(P) 0 // Assume no 5V tolerance
+      #else
+        #define _IS_5V_TOLERANT(P) 1 // Assume 5V tolerance
+      #endif
+      #if USES_Z_MIN_PROBE_PIN && !_IS_5V_TOLERANT(Z_MIN_PROBE_PIN)
+        #error "BLTOUCH_SET_5V_MODE is not compatible with the Z_MIN_PROBE_PIN."
+      #elif !_IS_5V_TOLERANT(Z_MIN_PIN)
+        #error "BLTOUCH_SET_5V_MODE is not compatible with the Z_MIN_PIN."
+      #endif
+      #undef _IS_5V_TOLERANT
+      #undef _5V
+    #elif NONE(ONBOARD_ENDSTOPPULLUPS, ENDSTOPPULLUPS, ENDSTOPPULLUP_ZMIN, ENDSTOPPULLUP_ZMIN_PROBE)
+      #if USES_Z_MIN_PROBE_PIN
+        #error "BLTOUCH on Z_MIN_PROBE_PIN requires ENDSTOPPULLUP_ZMIN_PROBE, ENDSTOPPULLUPS, or BLTOUCH_SET_5V_MODE."
+      #else
+        #error "BLTOUCH on Z_MIN_PIN requires ENDSTOPPULLUP_ZMIN, ENDSTOPPULLUPS, or BLTOUCH_SET_5V_MODE."
+      #endif
+    #endif
+
     #if BLTOUCH_DELAY < 200
       #error "BLTOUCH_DELAY less than 200 is unsafe and is not supported."
-    #elif DISABLED(BLTOUCH_SET_5V_MODE) && NONE(ONBOARD_ENDSTOPPULLUPS, ENDSTOPPULLUPS, ENDSTOPPULLUP_ZMIN, ENDSTOPPULLUP_ZMIN_PROBE)
-      #error "BLTOUCH without BLTOUCH_SET_5V_MODE requires ENDSTOPPULLUPS, ENDSTOPPULLUP_ZMIN or ENDSTOPPULLUP_ZMIN_PROBE."
     #endif
   #endif
 
@@ -1578,10 +1669,6 @@ static_assert(Y_MAX_LENGTH >= Y_BED_SIZE, "Movement bounds (Y_MIN_POS, Y_MAX_POS
 
   #if Z_PROBE_LOW_POINT > 0
     #error "Z_PROBE_LOW_POINT must be less than or equal to 0."
-  #endif
-
-  #if HOMING_Z_WITH_PROBE && IS_CARTESIAN && DISABLED(Z_SAFE_HOMING)
-    #error "Z_SAFE_HOMING is recommended when homing with a probe. Enable it or comment out this line to continue."
   #endif
 
   #if ENABLED(PROBE_ACTIVATION_SWITCH)
@@ -1991,7 +2078,7 @@ static_assert(Y_MAX_LENGTH >= Y_BED_SIZE, "Movement bounds (Y_MIN_POS, Y_MAX_POS
   #endif
 
   #if REDUNDANT_TEMP_MATCH(SOURCE, E0) && HAS_HOTEND
-    #error "TEMP_SENSOR_REDUNDANT_SOURCE can't be 0 if a hotend is used. E0 always uses TEMP_SENSOR_0."
+    #error "TEMP_SENSOR_REDUNDANT_SOURCE can't be E0 if a hotend is used. E0 always uses TEMP_SENSOR_0."
   #elif REDUNDANT_TEMP_MATCH(SOURCE, COOLER) && HAS_TEMP_COOLER
     #error "TEMP_SENSOR_REDUNDANT_SOURCE can't be COOLER. TEMP_SENSOR_COOLER is in use."
   #elif REDUNDANT_TEMP_MATCH(SOURCE, PROBE) && HAS_TEMP_PROBE
@@ -2447,6 +2534,11 @@ static_assert(Y_MAX_LENGTH >= Y_BED_SIZE, "Movement bounds (Y_MIN_POS, Y_MAX_POS
   #error "An encoder button is required or SOFT_RESET_ON_KILL will reset the printer without notice!"
 #endif
 
+// Reset reason for AVR
+#if ENABLED(OPTIBOOT_RESET_REASON) && !defined(__AVR__)
+  #error "OPTIBOOT_RESET_REASON only applies to AVR."
+#endif
+
 /**
  * I2C bus
  */
@@ -2592,9 +2684,10 @@ static_assert(Y_MAX_LENGTH >= Y_BED_SIZE, "Movement bounds (Y_MIN_POS, Y_MAX_POS
   + COUNT_ENABLED(FYSETC_MINI_12864_X_X, FYSETC_MINI_12864_1_2, FYSETC_MINI_12864_2_0, FYSETC_MINI_12864_2_1, FYSETC_GENERIC_12864_1_1) \
   + COUNT_ENABLED(LCD_SAINSMART_I2C_1602, LCD_SAINSMART_I2C_2004) \
   + COUNT_ENABLED(MKS_12864OLED, MKS_12864OLED_SSD1306) \
-  + COUNT_ENABLED(MKS_TS35_V2_0, MKS_ROBIN_TFT24, MKS_ROBIN_TFT28, MKS_ROBIN_TFT32, MKS_ROBIN_TFT35, MKS_ROBIN_TFT43, MKS_ROBIN_TFT_V1_1R, ANET_ET4_TFT28, ANET_ET5_TFT35) \
+  + COUNT_ENABLED(MKS_TS35_V2_0, MKS_ROBIN_TFT24, MKS_ROBIN_TFT28, MKS_ROBIN_TFT32, MKS_ROBIN_TFT35, MKS_ROBIN_TFT43, MKS_ROBIN_TFT_V1_1R, ANET_ET4_TFT28, ANET_ET5_TFT35, BIQU_BX_TFT70, BTT_TFT35_SPI_V1_0) \
   + COUNT_ENABLED(TFTGLCD_PANEL_SPI, TFTGLCD_PANEL_I2C) \
   + COUNT_ENABLED(VIKI2, miniVIKI) \
+  + ENABLED(WYH_L12864) \
   + COUNT_ENABLED(ZONESTAR_12864LCD, ZONESTAR_12864OLED, ZONESTAR_12864OLED_SSD1306) \
   + COUNT_ENABLED(ANET_FULL_GRAPHICS_LCD, ANET_FULL_GRAPHICS_LCD_ALT_WIRING) \
   + ENABLED(AZSMZ_12864) \
@@ -2641,12 +2734,11 @@ static_assert(Y_MAX_LENGTH >= Y_BED_SIZE, "Movement bounds (Y_MIN_POS, Y_MAX_POS
 
 #undef IS_U8GLIB_SSD1306
 #undef IS_EXTUI
-#undef IS_LEGACY_TFT
 
-#if ANY(TFT_GENERIC, MKS_TS35_V2_0, MKS_ROBIN_TFT24, MKS_ROBIN_TFT28, MKS_ROBIN_TFT32, MKS_ROBIN_TFT35, MKS_ROBIN_TFT43, MKS_ROBIN_TFT_V1_1R, TFT_TRONXY_X5SA, ANYCUBIC_TFT35, ANYCUBIC_TFT35, LONGER_LK_TFT28, ANET_ET4_TFT28, ANET_ET5_TFT35, BIQU_BX_TFT70)
+#if ANY(TFT_GENERIC, MKS_TS35_V2_0, MKS_ROBIN_TFT24, MKS_ROBIN_TFT28, MKS_ROBIN_TFT32, MKS_ROBIN_TFT35, MKS_ROBIN_TFT43, MKS_ROBIN_TFT_V1_1R, TFT_TRONXY_X5SA, ANYCUBIC_TFT35, ANYCUBIC_TFT35, LONGER_LK_TFT28, ANET_ET4_TFT28, ANET_ET5_TFT35, BIQU_BX_TFT70, BTT_TFT35_SPI_V1_0)
   #if NONE(TFT_COLOR_UI, TFT_CLASSIC_UI, TFT_LVGL_UI)
     #error "TFT_COLOR_UI, TFT_CLASSIC_UI, TFT_LVGL_UI is required for your TFT. Please enable one."
-  #elif 1 < ENABLED(TFT_COLOR_UI) + ENABLED(TFT_CLASSIC_UI) + ENABLED(TFT_LVGL_UI)
+  #elif MANY(TFT_COLOR_UI, TFT_CLASSIC_UI, TFT_LVGL_UI)
     #error "Please select only one of TFT_COLOR_UI, TFT_CLASSIC_UI, or TFT_LVGL_UI."
   #endif
 #elif ANY(TFT_COLOR_UI, TFT_CLASSIC_UI, TFT_LVGL_UI)
@@ -2669,8 +2761,12 @@ static_assert(Y_MAX_LENGTH >= Y_BED_SIZE, "Movement bounds (Y_MIN_POS, Y_MAX_POS
   #error "Please select only one of TFT_RES_320x240, TFT_RES_480x272, TFT_RES_480x320, or TFT_RES_1024x600."
 #endif
 
-#if HAS_TFT_LVGL_UI && DISABLED(TFT_RES_480x320)
-  #error "(FMSC|SPI)TFT_LVGL_UI requires TFT_RES_480x320."
+#if ENABLED(TFT_LVGL_UI)
+  #if DISABLED(TFT_RES_480x320)
+    #error "TFT_LVGL_UI requires TFT_RES_480x320."
+  #elif DISABLED(SDSUPPORT)
+    #error "TFT_LVGL_UI requires SDSUPPORT."
+  #endif
 #endif
 
 #if defined(GRAPHICAL_TFT_UPSCALE) && !WITHIN(GRAPHICAL_TFT_UPSCALE, 2, 4)
@@ -2679,6 +2775,10 @@ static_assert(Y_MAX_LENGTH >= Y_BED_SIZE, "Movement bounds (Y_MIN_POS, Y_MAX_POS
 
 #if BOTH(CHIRON_TFT_STANDARD, CHIRON_TFT_NEW)
   #error "Please select only one of CHIRON_TFT_STANDARD or CHIRON_TFT_NEW."
+#endif
+
+#if EITHER(MKS_TS35_V2_0, BTT_TFT35_SPI_V1_0) && SD_CONNECTION_IS(LCD)
+  #error "SDCARD_CONNECTION cannot be set to LCD for the enabled TFT. No available SD card reader."
 #endif
 
 /**
@@ -2958,10 +3058,16 @@ static_assert(Y_MAX_LENGTH >= Y_BED_SIZE, "Movement bounds (Y_MIN_POS, Y_MAX_POS
       #error "SENSORLESS_HOMING requires ENDSTOPPULLUP_ZMIN (or ENDSTOPPULLUPS) when homing to Z_MIN."
     #elif Z_SENSORLESS && Z_HOME_TO_MAX && DISABLED(ENDSTOPPULLUP_ZMAX)
       #error "SENSORLESS_HOMING requires ENDSTOPPULLUP_ZMAX (or ENDSTOPPULLUPS) when homing to Z_MAX."
+    #elif LINEAR_AXES >= 4 && I_SENSORLESS && I_HOME_TO_MIN && DISABLED(ENDSTOPPULLUP_IMIN)
+      #error "SENSORLESS_HOMING requires ENDSTOPPULLUP_IMIN (or ENDSTOPPULLUPS) when homing to I_MIN."
     #elif LINEAR_AXES >= 4 && I_SENSORLESS && I_HOME_TO_MAX && DISABLED(ENDSTOPPULLUP_IMAX)
       #error "SENSORLESS_HOMING requires ENDSTOPPULLUP_IMAX (or ENDSTOPPULLUPS) when homing to I_MAX."
+    #elif LINEAR_AXES >= 5 && J_SENSORLESS && J_HOME_TO_MIN && DISABLED(ENDSTOPPULLUP_JMIN)
+      #error "SENSORLESS_HOMING requires ENDSTOPPULLUP_JMIN (or ENDSTOPPULLUPS) when homing to J_MIN."
     #elif LINEAR_AXES >= 5 && J_SENSORLESS && J_HOME_TO_MAX && DISABLED(ENDSTOPPULLUP_JMAX)
       #error "SENSORLESS_HOMING requires ENDSTOPPULLUP_JMAX (or ENDSTOPPULLUPS) when homing to J_MAX."
+    #elif LINEAR_AXES >= 6 && K_SENSORLESS && K_HOME_TO_MIN && DISABLED(ENDSTOPPULLUP_KMIN)
+      #error "SENSORLESS_HOMING requires ENDSTOPPULLUP_KMIN (or ENDSTOPPULLUPS) when homing to K_MIN."
     #elif LINEAR_AXES >= 6 && K_SENSORLESS && K_HOME_TO_MAX && DISABLED(ENDSTOPPULLUP_KMAX)
       #error "SENSORLESS_HOMING requires ENDSTOPPULLUP_KMAX (or ENDSTOPPULLUPS) when homing to K_MAX."
     #endif
@@ -3181,82 +3287,64 @@ static_assert(Y_MAX_LENGTH >= Y_BED_SIZE, "Movement bounds (Y_MIN_POS, Y_MAX_POS
 /**
  * Check per-axis initializers for errors
  */
-constexpr float sanity_arr_1[] = DEFAULT_AXIS_STEPS_PER_UNIT,
-                sanity_arr_2[] = DEFAULT_MAX_FEEDRATE,
-                sanity_arr_3[] = DEFAULT_MAX_ACCELERATION,
-                sanity_arr_7[] = HOMING_FEEDRATE_MM_M;
 
-#define _ARR_TEST(N,I) (sanity_arr_##N[_MIN(I,int(COUNT(sanity_arr_##N))-1)] > 0)
+#define __PLUS_TEST(I,A) && (sanity_arr_##A[_MIN(I,signed(COUNT(sanity_arr_##A)-1))] > 0)
+#define _PLUS_TEST(A) (1 REPEAT2(14,__PLUS_TEST,A))
 #if HAS_MULTI_EXTRUDER
   #define _EXTRA_NOTE " (Did you forget to enable DISTINCT_E_FACTORS?)"
 #else
   #define _EXTRA_NOTE " (Should be " STRINGIFY(LINEAR_AXES) "+" STRINGIFY(E_STEPPERS) ")"
 #endif
 
+constexpr float sanity_arr_1[] = DEFAULT_AXIS_STEPS_PER_UNIT;
 static_assert(COUNT(sanity_arr_1) >= LOGICAL_AXES,  "DEFAULT_AXIS_STEPS_PER_UNIT requires " _LOGICAL_AXES_STR "elements.");
 static_assert(COUNT(sanity_arr_1) <= DISTINCT_AXES, "DEFAULT_AXIS_STEPS_PER_UNIT has too many elements." _EXTRA_NOTE);
-static_assert(   _ARR_TEST(1,0) && _ARR_TEST(1,1) && _ARR_TEST(1,2)
-              && _ARR_TEST(1,3) && _ARR_TEST(1,4) && _ARR_TEST(1,5)
-              && _ARR_TEST(1,6) && _ARR_TEST(1,7) && _ARR_TEST(1,8),
-              "DEFAULT_AXIS_STEPS_PER_UNIT values must be positive.");
+static_assert(_PLUS_TEST(1), "DEFAULT_AXIS_STEPS_PER_UNIT values must be positive.");
 
+constexpr float sanity_arr_2[] = DEFAULT_MAX_FEEDRATE;
 static_assert(COUNT(sanity_arr_2) >= LOGICAL_AXES,  "DEFAULT_MAX_FEEDRATE requires " _LOGICAL_AXES_STR "elements.");
 static_assert(COUNT(sanity_arr_2) <= DISTINCT_AXES, "DEFAULT_MAX_FEEDRATE has too many elements." _EXTRA_NOTE);
-static_assert(   _ARR_TEST(2,0) && _ARR_TEST(2,1) && _ARR_TEST(2,2)
-              && _ARR_TEST(2,3) && _ARR_TEST(2,4) && _ARR_TEST(2,5)
-              && _ARR_TEST(2,6) && _ARR_TEST(2,7) && _ARR_TEST(2,8),
-              "DEFAULT_MAX_FEEDRATE values must be positive.");
+static_assert(_PLUS_TEST(2), "DEFAULT_MAX_FEEDRATE values must be positive.");
 
+constexpr float sanity_arr_3[] = DEFAULT_MAX_ACCELERATION;
 static_assert(COUNT(sanity_arr_3) >= LOGICAL_AXES,  "DEFAULT_MAX_ACCELERATION requires " _LOGICAL_AXES_STR "elements.");
 static_assert(COUNT(sanity_arr_3) <= DISTINCT_AXES, "DEFAULT_MAX_ACCELERATION has too many elements." _EXTRA_NOTE);
-static_assert(   _ARR_TEST(3,0) && _ARR_TEST(3,1) && _ARR_TEST(3,2)
-              && _ARR_TEST(3,3) && _ARR_TEST(3,4) && _ARR_TEST(3,5)
-              && _ARR_TEST(3,6) && _ARR_TEST(3,7) && _ARR_TEST(3,8),
-              "DEFAULT_MAX_ACCELERATION values must be positive.");
+static_assert(_PLUS_TEST(3), "DEFAULT_MAX_ACCELERATION values must be positive.");
 
-static_assert(COUNT(sanity_arr_7) == LINEAR_AXES,  "HOMING_FEEDRATE_MM_M requires " _LINEAR_AXES_STR "elements (and no others).");
-static_assert(   _ARR_TEST(3,0) && _ARR_TEST(3,1) && _ARR_TEST(3,2)
-              && _ARR_TEST(3,3) && _ARR_TEST(3,4) && _ARR_TEST(3,5)
-              && _ARR_TEST(3,6) && _ARR_TEST(3,7) && _ARR_TEST(3,8),
-              "HOMING_FEEDRATE_MM_M values must be positive.");
+constexpr float sanity_arr_4[] = HOMING_FEEDRATE_MM_M;
+static_assert(COUNT(sanity_arr_4) == LINEAR_AXES,  "HOMING_FEEDRATE_MM_M requires " _LINEAR_AXES_STR "elements (and no others).");
+static_assert(_PLUS_TEST(4), "HOMING_FEEDRATE_MM_M values must be positive.");
 
-#if ENABLED(LIMITED_MAX_ACCEL_EDITING)
-  #ifdef MAX_ACCEL_EDIT_VALUES
-    constexpr float sanity_arr_4[] = MAX_ACCEL_EDIT_VALUES;
-    static_assert(COUNT(sanity_arr_4) >= LOGICAL_AXES, "MAX_ACCEL_EDIT_VALUES requires " _LOGICAL_AXES_STR "elements.");
-    static_assert(COUNT(sanity_arr_4) <= LOGICAL_AXES, "MAX_ACCEL_EDIT_VALUES has too many elements. " _LOGICAL_AXES_STR "elements only.");
-    static_assert(   _ARR_TEST(4,0) && _ARR_TEST(4,1) && _ARR_TEST(4,2)
-                  && _ARR_TEST(4,3) && _ARR_TEST(4,4) && _ARR_TEST(4,5)
-                  && _ARR_TEST(4,6) && _ARR_TEST(4,7) && _ARR_TEST(4,8),
-                  "MAX_ACCEL_EDIT_VALUES values must be positive.");
-  #endif
+#ifdef MAX_ACCEL_EDIT_VALUES
+  constexpr float sanity_arr_5[] = MAX_ACCEL_EDIT_VALUES;
+  static_assert(COUNT(sanity_arr_5) >= LOGICAL_AXES, "MAX_ACCEL_EDIT_VALUES requires " _LOGICAL_AXES_STR "elements.");
+  static_assert(COUNT(sanity_arr_5) <= LOGICAL_AXES, "MAX_ACCEL_EDIT_VALUES has too many elements. " _LOGICAL_AXES_STR "elements only.");
+  static_assert(_PLUS_TEST(5), "MAX_ACCEL_EDIT_VALUES values must be positive.");
 #endif
 
-#if ENABLED(LIMITED_MAX_FR_EDITING)
-  #ifdef MAX_FEEDRATE_EDIT_VALUES
-    constexpr float sanity_arr_5[] = MAX_FEEDRATE_EDIT_VALUES;
-    static_assert(COUNT(sanity_arr_5) >= LOGICAL_AXES, "MAX_FEEDRATE_EDIT_VALUES requires " _LOGICAL_AXES_STR "elements.");
-    static_assert(COUNT(sanity_arr_5) <= LOGICAL_AXES, "MAX_FEEDRATE_EDIT_VALUES has too many elements. " _LOGICAL_AXES_STR "elements only.");
-    static_assert(   _ARR_TEST(5,0) && _ARR_TEST(5,1) && _ARR_TEST(5,2)
-                  && _ARR_TEST(5,3) && _ARR_TEST(5,4) && _ARR_TEST(5,5)
-                  && _ARR_TEST(5,6) && _ARR_TEST(5,7) && _ARR_TEST(5,8),
-                  "MAX_FEEDRATE_EDIT_VALUES values must be positive.");
-  #endif
+#ifdef MAX_FEEDRATE_EDIT_VALUES
+  constexpr float sanity_arr_6[] = MAX_FEEDRATE_EDIT_VALUES;
+  static_assert(COUNT(sanity_arr_6) >= LOGICAL_AXES, "MAX_FEEDRATE_EDIT_VALUES requires " _LOGICAL_AXES_STR "elements.");
+  static_assert(COUNT(sanity_arr_6) <= LOGICAL_AXES, "MAX_FEEDRATE_EDIT_VALUES has too many elements. " _LOGICAL_AXES_STR "elements only.");
+  static_assert(_PLUS_TEST(6), "MAX_FEEDRATE_EDIT_VALUES values must be positive.");
 #endif
 
-#if ENABLED(LIMITED_JERK_EDITING)
-  #ifdef MAX_JERK_EDIT_VALUES
-    constexpr float sanity_arr_6[] = MAX_JERK_EDIT_VALUES;
-    static_assert(COUNT(sanity_arr_6) >= LOGICAL_AXES, "MAX_JERK_EDIT_VALUES requires " _LOGICAL_AXES_STR "elements.");
-    static_assert(COUNT(sanity_arr_6) <= LOGICAL_AXES, "MAX_JERK_EDIT_VALUES has too many elements. " _LOGICAL_AXES_STR "elements only.");
-    static_assert(   _ARR_TEST(6,0) && _ARR_TEST(6,1) && _ARR_TEST(6,2)
-                  && _ARR_TEST(6,3) && _ARR_TEST(6,4) && _ARR_TEST(6,5)
-                  && _ARR_TEST(6,6) && _ARR_TEST(6,7) && _ARR_TEST(6,8),
-                  "MAX_JERK_EDIT_VALUES values must be positive.");
-  #endif
+#ifdef MAX_JERK_EDIT_VALUES
+  constexpr float sanity_arr_7[] = MAX_JERK_EDIT_VALUES;
+  static_assert(COUNT(sanity_arr_7) >= LOGICAL_AXES, "MAX_JERK_EDIT_VALUES requires " _LOGICAL_AXES_STR "elements.");
+  static_assert(COUNT(sanity_arr_7) <= LOGICAL_AXES, "MAX_JERK_EDIT_VALUES has too many elements. " _LOGICAL_AXES_STR "elements only.");
+  static_assert(_PLUS_TEST(7), "MAX_JERK_EDIT_VALUES values must be positive.");
 #endif
 
-#undef _ARR_TEST
+#ifdef MANUAL_FEEDRATE
+  constexpr float sanity_arr_8[] = MANUAL_FEEDRATE;
+  static_assert(COUNT(sanity_arr_8) >= LOGICAL_AXES, "MANUAL_FEEDRATE requires " _LOGICAL_AXES_STR "elements.");
+  static_assert(COUNT(sanity_arr_8) <= LOGICAL_AXES, "MANUAL_FEEDRATE has too many elements. " _LOGICAL_AXES_STR "elements only.");
+  static_assert(_PLUS_TEST(8), "MANUAL_FEEDRATE values must be positive.");
+#endif
+
+#undef __PLUS_TEST
+#undef _PLUS_TEST
 #undef _EXTRA_NOTE
 
 #if BOTH(CNC_COORDINATE_SYSTEMS, NO_WORKSPACE_OFFSETS)
@@ -3335,10 +3423,6 @@ static_assert(   _ARR_TEST(3,0) && _ARR_TEST(3,1) && _ARR_TEST(3,2)
   #if defined(GANTRY_CALIBRATION_SAFE_POSITION) && !defined(GANTRY_CALIBRATION_XY_PARK_FEEDRATE)
     #error "GANTRY_CALIBRATION_SAFE_POSITION Requires GANTRY_CALIBRATION_XY_PARK_FEEDRATE to be set."
   #endif
-#endif
-
-#if BOTH(Z_STEPPER_AUTO_ALIGN, MECHANICAL_GANTRY_CALIBRATION)
-  #error "You cannot use Z_STEPPER_AUTO_ALIGN and MECHANICAL_GANTRY_CALIBRATION at the same time."
 #endif
 
 #if ENABLED(PRINTCOUNTER) && DISABLED(EEPROM_SETTINGS)
@@ -3425,6 +3509,13 @@ static_assert(   _ARR_TEST(3,0) && _ARR_TEST(3,1) && _ARR_TEST(3,2)
 #endif
 
 /**
+ * Validate MKS_PWC
+ */
+#if ENABLED(MKS_PWC) && PSU_ACTIVE_STATE != HIGH
+  #error "MKS_PWC requires PSU_ACTIVE_STATE to be set HIGH."
+#endif
+
+/**
  * Ensure this option is set intentionally
  */
 #if ENABLED(PSU_CONTROL)
@@ -3451,8 +3542,8 @@ static_assert(   _ARR_TEST(3,0) && _ARR_TEST(3,1) && _ARR_TEST(3,2)
       #error "LASER_MOVE_G0_OFF requires LASER_MOVE_POWER."
     #endif
     #if ENABLED(LASER_POWER_INLINE_TRAPEZOID)
-      #if DISABLED(SPINDLE_LASER_PWM)
-        #error "LASER_POWER_INLINE_TRAPEZOID requires SPINDLE_LASER_PWM to function."
+      #if DISABLED(SPINDLE_LASER_USE_PWM)
+        #error "LASER_POWER_INLINE_TRAPEZOID requires SPINDLE_LASER_USE_PWM to function."
       #elif ENABLED(S_CURVE_ACCELERATION)
         //#ifndef LASER_POWER_INLINE_S_CURVE_ACCELERATION_WARN
         //  #define LASER_POWER_INLINE_S_CURVE_ACCELERATION_WARN
@@ -3484,21 +3575,21 @@ static_assert(   _ARR_TEST(3,0) && _ARR_TEST(3,1) && _ARR_TEST(3,2)
     #error "(SPINDLE|LASER)_FEATURE requires SPINDLE_LASER_ENA_PIN or SPINDLE_SERVO to control the power."
   #elif ENABLED(SPINDLE_CHANGE_DIR) && !PIN_EXISTS(SPINDLE_DIR)
     #error "SPINDLE_DIR_PIN is required for SPINDLE_CHANGE_DIR."
-  #elif ENABLED(SPINDLE_LASER_PWM)
+  #elif ENABLED(SPINDLE_LASER_USE_PWM)
     #if !defined(SPINDLE_LASER_PWM_PIN) || SPINDLE_LASER_PWM_PIN < 0
-      #error "SPINDLE_LASER_PWM_PIN is required for SPINDLE_LASER_PWM."
+      #error "SPINDLE_LASER_PWM_PIN is required for SPINDLE_LASER_USE_PWM."
     #elif !_TEST_PWM(SPINDLE_LASER_PWM_PIN)
       #error "SPINDLE_LASER_PWM_PIN not assigned to a PWM pin."
     #elif !defined(SPINDLE_LASER_PWM_INVERT)
       #error "SPINDLE_LASER_PWM_INVERT is required for (SPINDLE|LASER)_FEATURE."
     #elif !(defined(SPEED_POWER_INTERCEPT) && defined(SPEED_POWER_MIN) && defined(SPEED_POWER_MAX) && defined(SPEED_POWER_STARTUP))
-      #error "SPINDLE_LASER_PWM equation constant(s) missing."
+      #error "SPINDLE_LASER_USE_PWM equation constant(s) missing."
     #elif _PIN_CONFLICT(X_MIN)
-      #error "SPINDLE_LASER_PWM pin conflicts with X_MIN_PIN."
+      #error "SPINDLE_LASER_USE_PWM pin conflicts with X_MIN_PIN."
     #elif _PIN_CONFLICT(X_MAX)
-      #error "SPINDLE_LASER_PWM pin conflicts with X_MAX_PIN."
+      #error "SPINDLE_LASER_USE_PWM pin conflicts with X_MAX_PIN."
     #elif _PIN_CONFLICT(Z_STEP)
-      #error "SPINDLE_LASER_PWM pin conflicts with Z_STEP_PIN."
+      #error "SPINDLE_LASER_USE_PWM pin conflicts with Z_STEP_PIN."
     #elif _PIN_CONFLICT(CASE_LIGHT)
       #error "SPINDLE_LASER_PWM_PIN conflicts with CASE_LIGHT_PIN."
     #elif _PIN_CONFLICT(E0_AUTO_FAN)
@@ -3571,13 +3662,6 @@ static_assert(   _ARR_TEST(3,0) && _ARR_TEST(3,1) && _ARR_TEST(3,2)
 // G60/G61 Position Save
 #if SAVED_POSITIONS > 256
   #error "SAVED_POSITIONS must be an integer from 0 to 256."
-#endif
-
-/**
- * Stepper Chunk support
- */
-#if BOTH(DIRECT_STEPPING, LIN_ADVANCE)
-  #error "DIRECT_STEPPING is incompatible with LIN_ADVANCE. Enable in external planner if possible."
 #endif
 
 /**

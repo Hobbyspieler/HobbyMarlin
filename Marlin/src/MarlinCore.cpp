@@ -30,10 +30,6 @@
 
 #include "MarlinCore.h"
 
-#if ENABLED(MARLIN_DEV_MODE)
-  #warning "WARNING! Disable MARLIN_DEV_MODE for the final build!"
-#endif
-
 #include "HAL/shared/Delay.h"
 #include "HAL/shared/esp_wifi.h"
 #include "HAL/shared/cpu_exception/exception_hook.h"
@@ -77,10 +73,6 @@
 #if ENABLED(DWIN_CREALITY_LCD)
   #include "lcd/dwin/creality_dwin.h"
   #include "lcd/dwin/rotary_encoder.h"
-#endif
-
-#if ENABLED(EXTENSIBLE_UI)
-  #include "lcd/extui/ui_api.h"
 #endif
 
 #if HAS_ETHERNET
@@ -166,6 +158,8 @@
 
 #if ENABLED(DELTA)
   #include "module/delta.h"
+#elif ENABLED(POLARGRAPH)
+  #include "module/polargraph.h"
 #elif IS_SCARA
   #include "module/scara.h"
 #endif
@@ -214,6 +208,10 @@
 
 #if ENABLED(USE_CONTROLLER_FAN)
   #include "feature/controllerfan.h"
+#endif
+
+#if HAS_PRUSA_MMU1
+  #include "feature/mmu/mmu.h"
 #endif
 
 #if HAS_PRUSA_MMU2
@@ -308,48 +306,6 @@ bool pin_is_protected(const pin_t pin) {
 
 #pragma GCC diagnostic pop
 
-void enable_e_steppers() {
-  #define _ENA_E(N) ENABLE_AXIS_E##N();
-  REPEAT(E_STEPPERS, _ENA_E)
-}
-
-void enable_all_steppers() {
-  TERN_(AUTO_POWER_CONTROL, powerManager.power_on());
-  ENABLE_AXIS_X();
-  ENABLE_AXIS_Y();
-  ENABLE_AXIS_Z();
-  ENABLE_AXIS_I(); // Marlin 6-axis support by DerAndere (https://github.com/DerAndere1/Marlin/wiki)
-  ENABLE_AXIS_J();
-  ENABLE_AXIS_K();
-  enable_e_steppers();
-
-  TERN_(EXTENSIBLE_UI, ExtUI::onSteppersEnabled());
-}
-
-void disable_e_steppers() {
-  #define _DIS_E(N) DISABLE_AXIS_E##N();
-  REPEAT(E_STEPPERS, _DIS_E)
-}
-
-void disable_e_stepper(const uint8_t e) {
-  #define _CASE_DIS_E(N) case N: DISABLE_AXIS_E##N(); break;
-  switch (e) {
-    REPEAT(E_STEPPERS, _CASE_DIS_E)
-  }
-}
-
-void disable_all_steppers() {
-  DISABLE_AXIS_X();
-  DISABLE_AXIS_Y();
-  DISABLE_AXIS_Z();
-  DISABLE_AXIS_I();
-  DISABLE_AXIS_J();
-  DISABLE_AXIS_K();
-  disable_e_steppers();
-
-  TERN_(EXTENSIBLE_UI, ExtUI::onSteppersDisabled());
-}
-
 /**
  * A Print Job exists when the timer is running or SD is printing
  */
@@ -399,15 +355,15 @@ void startOrResumeJob() {
     TERN_(POWER_LOSS_RECOVERY, recovery.purge());
 
     #ifdef EVENT_GCODE_SD_ABORT
-      queue.inject_P(PSTR(EVENT_GCODE_SD_ABORT));
+      queue.inject(F(EVENT_GCODE_SD_ABORT));
     #endif
 
     TERN_(PASSWORD_AFTER_SD_PRINT_ABORT, password.lock_machine());
   }
 
   inline void finishSDPrinting() {
-    if (queue.enqueue_one_P(PSTR("M1001"))) { // Keep trying until it gets queued
-      marlin_state = MF_RUNNING;              // Signal to stop trying
+    if (queue.enqueue_one(F("M1001"))) {  // Keep trying until it gets queued
+      marlin_state = MF_RUNNING;          // Signal to stop trying
       TERN_(PASSWORD_AFTER_SD_PRINT_END, password.lock_machine());
       TERN_(DGUS_LCD_UI_MKS, ScreenHandler.SDPrintingFinished());
     }
@@ -460,13 +416,13 @@ inline void manage_inactivity(const bool no_stepper_sleep=false) {
         already_shutdown_steppers = true;  // L6470 SPI will consume 99% of free time without this
 
         // Individual axes will be disabled if configured
-        if (ENABLED(DISABLE_INACTIVE_X)) DISABLE_AXIS_X();
-        if (ENABLED(DISABLE_INACTIVE_Y)) DISABLE_AXIS_Y();
-        if (ENABLED(DISABLE_INACTIVE_Z)) DISABLE_AXIS_Z();
-        if (ENABLED(DISABLE_INACTIVE_I)) DISABLE_AXIS_I();
-        if (ENABLED(DISABLE_INACTIVE_J)) DISABLE_AXIS_J();
-        if (ENABLED(DISABLE_INACTIVE_K)) DISABLE_AXIS_K();
-        if (ENABLED(DISABLE_INACTIVE_E)) disable_e_steppers();
+        TERN_(DISABLE_INACTIVE_X, stepper.disable_axis(X_AXIS));
+        TERN_(DISABLE_INACTIVE_Y, stepper.disable_axis(Y_AXIS));
+        TERN_(DISABLE_INACTIVE_Z, stepper.disable_axis(Z_AXIS));
+        TERN_(DISABLE_INACTIVE_I, stepper.disable_axis(I_AXIS));
+        TERN_(DISABLE_INACTIVE_J, stepper.disable_axis(J_AXIS));
+        TERN_(DISABLE_INACTIVE_K, stepper.disable_axis(K_AXIS));
+        TERN_(DISABLE_INACTIVE_E, stepper.disable_e_steppers());
 
         TERN_(AUTO_BED_LEVELING_UBL, ubl.steppers_were_disabled());
       }
@@ -535,7 +491,8 @@ inline void manage_inactivity(const bool no_stepper_sleep=false) {
         if (ELAPSED(ms, next_cub_ms_##N)) {                            \
           next_cub_ms_##N = ms + CUB_DEBOUNCE_DELAY_##N;               \
           CODE;                                                        \
-          queue.inject_P(PSTR(BUTTON##N##_GCODE));                     \
+          queue.inject(F(BUTTON##N##_GCODE));                     \
+          TERN_(HAS_LCD_MENU, ui.quick_feedback());                    \
         }                                                              \
       }                                                                \
     }while(0)
@@ -684,13 +641,13 @@ inline void manage_inactivity(const bool no_stepper_sleep=false) {
       #if ENABLED(SWITCHING_EXTRUDER)
         bool oldstatus;
         switch (active_extruder) {
-          default: oldstatus = E0_ENABLE_READ(); ENABLE_AXIS_E0(); break;
+          default: oldstatus = stepper.AXIS_IS_ENABLED(E_AXIS, 0); stepper.ENABLE_EXTRUDER(0); break;
           #if E_STEPPERS > 1
-            case 2: case 3: oldstatus = E1_ENABLE_READ(); ENABLE_AXIS_E1(); break;
+            case 2: case 3: oldstatus = stepper.AXIS_IS_ENABLED(E_AXIS, 1); stepper.ENABLE_EXTRUDER(1); break;
             #if E_STEPPERS > 2
-              case 4: case 5: oldstatus = E2_ENABLE_READ(); ENABLE_AXIS_E2(); break;
+              case 4: case 5: oldstatus = stepper.AXIS_IS_ENABLED(E_AXIS, 2); stepper.ENABLE_EXTRUDER(2); break;
               #if E_STEPPERS > 3
-                case 6: case 7: oldstatus = E3_ENABLE_READ(); ENABLE_AXIS_E3(); break;
+                case 6: case 7: oldstatus = stepper.AXIS_IS_ENABLED(E_AXIS, 3); stepper.ENABLE_EXTRUDER(3); break;
               #endif // E_STEPPERS > 3
             #endif // E_STEPPERS > 2
           #endif // E_STEPPERS > 1
@@ -699,7 +656,7 @@ inline void manage_inactivity(const bool no_stepper_sleep=false) {
         bool oldstatus;
         switch (active_extruder) {
           default:
-          #define _CASE_EN(N) case N: oldstatus = E##N##_ENABLE_READ(); ENABLE_AXIS_E##N(); break;
+          #define _CASE_EN(N) case N: oldstatus = stepper.AXIS_IS_ENABLED(E_AXIS, N); stepper.ENABLE_EXTRUDER(N); break;
           REPEAT(E_STEPPERS, _CASE_EN);
         }
       #endif
@@ -713,17 +670,17 @@ inline void manage_inactivity(const bool no_stepper_sleep=false) {
 
       #if ENABLED(SWITCHING_EXTRUDER)
         switch (active_extruder) {
-          default: oldstatus = E0_ENABLE_WRITE(oldstatus); break;
+          default: if (oldstatus) stepper.ENABLE_EXTRUDER(0); else stepper.DISABLE_EXTRUDER(0); break;
           #if E_STEPPERS > 1
-            case 2: case 3: oldstatus = E1_ENABLE_WRITE(oldstatus); break;
+            case 2: case 3: if (oldstatus) stepper.ENABLE_EXTRUDER(1); else stepper.DISABLE_EXTRUDER(1); break;
             #if E_STEPPERS > 2
-              case 4: case 5: oldstatus = E2_ENABLE_WRITE(oldstatus); break;
+              case 4: case 5: if (oldstatus) stepper.ENABLE_EXTRUDER(2); else stepper.DISABLE_EXTRUDER(2); break;
             #endif // E_STEPPERS > 2
           #endif // E_STEPPERS > 1
         }
       #else // !SWITCHING_EXTRUDER
         switch (active_extruder) {
-          #define _CASE_RESTORE(N) case N: E##N##_ENABLE_WRITE(oldstatus); break;
+          #define _CASE_RESTORE(N) case N: if (oldstatus) stepper.ENABLE_EXTRUDER(N); else stepper.DISABLE_EXTRUDER(N); break;
           REPEAT(E_STEPPERS, _CASE_RESTORE);
         }
       #endif // !SWITCHING_EXTRUDER
@@ -792,7 +749,7 @@ inline void manage_inactivity(const bool no_stepper_sleep=false) {
 void idle(bool no_stepper_sleep/*=false*/) {
   #if ENABLED(MARLIN_DEV_MODE)
     static uint16_t idle_depth = 0;
-    if (++idle_depth > 5) SERIAL_ECHOLNPAIR("idle() call depth: ", idle_depth);
+    if (++idle_depth > 5) SERIAL_ECHOLNPGM("idle() call depth: ", idle_depth);
   #endif
 
   // Core Marlin activities
@@ -913,7 +870,7 @@ void kill(PGM_P const lcd_error/*=nullptr*/, PGM_P const lcd_component/*=nullptr
   SERIAL_ERROR_MSG(STR_ERR_KILLED);
 
   #ifdef ACTION_ON_KILL
-    host_action_kill();
+    hostui.kill();
   #endif
 
   minkill(steppers_off);
@@ -935,7 +892,7 @@ void minkill(const bool steppers_off/*=false*/) {
   TERN_(HAS_CUTTER, cutter.kill());  // Reiterate cutter shutdown
 
   // Power off all steppers (for M112) or just the E steppers
-  steppers_off ? disable_all_steppers() : disable_e_steppers();
+  steppers_off ? stepper.disable_all_steppers() : stepper.disable_e_steppers();
 
   TERN_(PSU_CONTROL, powerManager.power_off());
 
@@ -1131,11 +1088,19 @@ inline void tmc_standby_setup() {
  *  - Set Marlin to RUNNING State
  */
 void setup() {
+  #ifdef FASTIO_INIT
+    FASTIO_INIT();
+  #endif
+
   #ifdef BOARD_PREINIT
     BOARD_PREINIT(); // Low-level init (before serial init)
   #endif
 
   tmc_standby_setup();  // TMC Low Power Standby pins must be set early or they're not usable
+
+  // Check startup - does nothing if bootloader sets MCUSR to 0
+  const byte mcu = HAL_get_reset_source();
+  HAL_clear_reset_source();
 
   #if ENABLED(MARLIN_DEV_MODE)
     auto log_current_ms = [&](PGM_P const msg) {
@@ -1188,7 +1153,7 @@ void setup() {
 
   #if HAS_SUICIDE
     SETUP_LOG("SUICIDE_PIN");
-    OUT_WRITE(SUICIDE_PIN, !SUICIDE_PIN_INVERTING);
+    OUT_WRITE(SUICIDE_PIN, !SUICIDE_PIN_STATE);
   #endif
 
   #ifdef JTAGSWD_RESET
@@ -1265,24 +1230,22 @@ void setup() {
 
   SETUP_RUN(esp_wifi_init());
 
-  // Check startup - does nothing if bootloader sets MCUSR to 0
-  const byte mcu = HAL_get_reset_source();
+  // Report Reset Reason
   if (mcu & RST_POWER_ON) SERIAL_ECHOLNPGM(STR_POWERUP);
   if (mcu & RST_EXTERNAL) SERIAL_ECHOLNPGM(STR_EXTERNAL_RESET);
   if (mcu & RST_BROWN_OUT) SERIAL_ECHOLNPGM(STR_BROWNOUT_RESET);
   if (mcu & RST_WATCHDOG) SERIAL_ECHOLNPGM(STR_WATCHDOG_RESET);
   if (mcu & RST_SOFTWARE) SERIAL_ECHOLNPGM(STR_SOFTWARE_RESET);
-  HAL_clear_reset_source();
 
+  // Identify myself as Marlin x.x.x
   SERIAL_ECHOLNPGM("Marlin " SHORT_BUILD_VERSION);
-  SERIAL_EOL();
   #if defined(STRING_DISTRIBUTION_DATE) && defined(STRING_CONFIG_H_AUTHOR)
     SERIAL_ECHO_MSG(
       " Last Updated: " STRING_DISTRIBUTION_DATE
       " | Author: " STRING_CONFIG_H_AUTHOR
     );
   #endif
-  SERIAL_ECHO_MSG("Compiled: " __DATE__);
+  SERIAL_ECHO_MSG(" Compiled: " __DATE__);
   SERIAL_ECHO_MSG(STR_FREE_MEMORY, freeMemory(), STR_PLANNER_BUFFER_BYTES, sizeof(block_t) * (BLOCK_BUFFER_SIZE));
 
   // Some HAL need precise delay adjustment
@@ -1341,7 +1304,7 @@ void setup() {
   #endif
 
   #if HAS_TOUCH_BUTTONS
-    SETUP_RUN(touch.init());
+    SETUP_RUN(touchBt.init());
   #endif
 
   TERN_(HAS_M206_COMMAND, current_position += home_offset); // Init current position based on home_offset
@@ -1555,11 +1518,11 @@ void setup() {
 
   #ifdef STARTUP_COMMANDS
     SETUP_LOG("STARTUP_COMMANDS");
-    queue.inject_P(PSTR(STARTUP_COMMANDS));
+    queue.inject(F(STARTUP_COMMANDS));
   #endif
 
   #if ENABLED(HOST_PROMPT_SUPPORT)
-    SETUP_RUN(host_action_prompt_end());
+    SETUP_RUN(hostui.prompt_end());
   #endif
 
   #if HAS_TRINAMIC_CONFIG && DISABLED(PSU_DEFAULT_OFF)
@@ -1602,7 +1565,7 @@ void setup() {
   #if BOTH(HAS_WIRED_LCD, SHOW_BOOTSCREEN)
     const millis_t elapsed = millis() - bootscreen_ms;
     #if ENABLED(MARLIN_DEV_MODE)
-      SERIAL_ECHOLNPAIR("elapsed=", elapsed);
+      SERIAL_ECHOLNPGM("elapsed=", elapsed);
     #endif
     SETUP_RUN(ui.bootscreen_completion(elapsed));
   #endif

@@ -128,7 +128,7 @@
   #include "../feature/tmc_util.h"
 #endif
 
-#if ENABLED(PROBE_TEMP_COMPENSATION)
+#if HAS_PTC
   #include "../feature/probe_temp_comp.h"
 #endif
 
@@ -274,13 +274,16 @@ typedef struct SettingsDataStruct {
   //
   // Temperature first layer compensation values
   //
-  #if ENABLED(PROBE_TEMP_COMPENSATION)
-    int16_t z_offsets_probe[COUNT(temp_comp.z_offsets_probe)], // M871 P I V
-            z_offsets_bed[COUNT(temp_comp.z_offsets_bed)]      // M871 B I V
-            #if ENABLED(USE_TEMP_EXT_COMPENSATION)
-              , z_offsets_ext[COUNT(temp_comp.z_offsets_ext)]  // M871 E I V
-            #endif
-            ;
+  #if HAS_PTC
+    #if ENABLED(PTC_PROBE)
+      int16_t z_offsets_probe[COUNT(ptc.z_offsets_probe)]; // M871 P I V
+    #endif
+    #if ENABLED(PTC_BED)
+      int16_t z_offsets_bed[COUNT(ptc.z_offsets_bed)];     // M871 B I V
+    #endif
+    #if ENABLED(PTC_HOTEND)
+      int16_t z_offsets_hotend[COUNT(ptc.z_offsets_hotend)];     // M871 E I V
+    #endif
   #endif
 
   //
@@ -559,7 +562,7 @@ void MarlinSettings::postprocess() {
 
   TERN_(EXTENSIBLE_UI, ExtUI::onPostprocessSettings());
 
-  // Refresh steps_to_mm with the reciprocal of axis_steps_per_mm
+  // Refresh mm_per_step with the reciprocal of axis_steps_per_mm
   // and init stepper.count[], planner.position[] with current_position
   planner.refresh_positioning();
 
@@ -846,11 +849,15 @@ void MarlinSettings::postprocess() {
     //
     // Thermal first layer compensation values
     //
-    #if ENABLED(PROBE_TEMP_COMPENSATION)
-      EEPROM_WRITE(temp_comp.z_offsets_probe);
-      EEPROM_WRITE(temp_comp.z_offsets_bed);
-      #if ENABLED(USE_TEMP_EXT_COMPENSATION)
-        EEPROM_WRITE(temp_comp.z_offsets_ext);
+    #if HAS_PTC
+      #if ENABLED(PTC_PROBE)
+        EEPROM_WRITE(ptc.z_offsets_probe);
+      #endif
+      #if ENABLED(PTC_BED)
+        EEPROM_WRITE(ptc.z_offsets_bed);
+      #endif
+      #if ENABLED(PTC_HOTEND)
+        EEPROM_WRITE(ptc.z_offsets_hotend);
       #endif
     #else
       // No placeholder data for this feature
@@ -1363,12 +1370,12 @@ void MarlinSettings::postprocess() {
     // Extensible UI User Data
     //
     #if ENABLED(EXTENSIBLE_UI)
-      {
-        char extui_data[ExtUI::eeprom_data_size] = { 0 };
-        ExtUI::onStoreSettings(extui_data);
-        _FIELD_TEST(extui_data);
-        EEPROM_WRITE(extui_data);
-      }
+    {
+      char extui_data[ExtUI::eeprom_data_size] = { 0 };
+      ExtUI::onStoreSettings(extui_data);
+      _FIELD_TEST(extui_data);
+      EEPROM_WRITE(extui_data);
+    }
     #endif
 
     //
@@ -1713,13 +1720,17 @@ void MarlinSettings::postprocess() {
       //
       // Thermal first layer compensation values
       //
-      #if ENABLED(PROBE_TEMP_COMPENSATION)
-        EEPROM_READ(temp_comp.z_offsets_probe);
-        EEPROM_READ(temp_comp.z_offsets_bed);
-        #if ENABLED(USE_TEMP_EXT_COMPENSATION)
-          EEPROM_READ(temp_comp.z_offsets_ext);
+      #if HAS_PTC
+        #if ENABLED(PTC_PROBE)
+          EEPROM_READ(ptc.z_offsets_probe);
         #endif
-        temp_comp.reset_index();
+        # if ENABLED(PTC_BED)
+          EEPROM_READ(ptc.z_offsets_bed);
+        #endif
+        #if ENABLED(PTC_HOTEND)
+          EEPROM_READ(ptc.z_offsets_hotend);
+        #endif
+        ptc.reset_index();
       #else
         // No placeholder data for this feature
       #endif
@@ -2256,13 +2267,12 @@ void MarlinSettings::postprocess() {
       // Extensible UI User Data
       //
       #if ENABLED(EXTENSIBLE_UI)
-        // This is a significant hardware change; don't reserve EEPROM space when not present
-        {
-          const char extui_data[ExtUI::eeprom_data_size] = { 0 };
-          _FIELD_TEST(extui_data);
-          EEPROM_READ(extui_data);
-          if (!validating) ExtUI::onLoadSettings(extui_data);
-        }
+      { // This is a significant hardware change; don't reserve EEPROM space when not present
+        const char extui_data[ExtUI::eeprom_data_size] = { 0 };
+        _FIELD_TEST(extui_data);
+        EEPROM_READ(extui_data);
+        if (!validating) ExtUI::onLoadSettings(extui_data);
+      }
       #endif
 
       //
@@ -2372,7 +2382,6 @@ void MarlinSettings::postprocess() {
           ubl.report_state();
 
           if (!ubl.sanity_check()) {
-            SERIAL_EOL();
             #if BOTH(EEPROM_CHITCHAT, DEBUG_LEVELING_FEATURE)
               ubl.echo_name();
               DEBUG_ECHOLNPGM(" initialized.\n");
@@ -2450,13 +2459,15 @@ void MarlinSettings::postprocess() {
       UNUSED(s);
     }
 
-    const uint16_t MarlinSettings::meshes_end = persistentStore.capacity() - 129; // 128 (+1 because of the change to capacity rather than last valid address)
-                                                                                  // is a placeholder for the size of the MAT; the MAT will always
-                                                                                  // live at the very end of the eeprom
+    // 128 (+1 because of the change to capacity rather than last valid address)
+    // is a placeholder for the size of the MAT; the MAT will always
+    // live at the very end of the eeprom
+    const uint16_t MarlinSettings::meshes_end = persistentStore.capacity() - 129;
 
     uint16_t MarlinSettings::meshes_start_index() {
-      return (datasize() + EEPROM_OFFSET + 32) & 0xFFF8;  // Pad the end of configuration data so it can float up
-                                                          // or down a little bit without disrupting the mesh data
+      // Pad the end of configuration data so it can float up
+      // or down a little bit without disrupting the mesh data
+      return (datasize() + EEPROM_OFFSET + 32) & 0xFFF8;
     }
 
     #define MESH_STORE_SIZE sizeof(TERN(OPTIMIZED_MESH_STORAGE, mesh_store_t, ubl.z_values))
@@ -2608,9 +2619,7 @@ void MarlinSettings::reset() {
     TERN_(HAS_CLASSIC_E_JERK, planner.max_jerk.e = DEFAULT_EJERK);
   #endif
 
-  #if HAS_JUNCTION_DEVIATION
-    planner.junction_deviation_mm = float(JUNCTION_DEVIATION_MM);
-  #endif
+  TERN_(HAS_JUNCTION_DEVIATION, planner.junction_deviation_mm = float(JUNCTION_DEVIATION_MM));
 
   #if HAS_SCARA_OFFSET
     scara_home_offset.reset();
@@ -2722,6 +2731,11 @@ void MarlinSettings::reset() {
   // Servo Angles
   //
   TERN_(EDITABLE_SERVO_ANGLES, COPY(servo_angles, base_servo_angles)); // When not editable only one copy of servo angles exists
+
+  //
+  // Probe Temperature Compensation
+  //
+  TERN_(HAS_PTC, ptc.reset());
 
   //
   // BLTOUCH
@@ -3206,9 +3220,7 @@ void MarlinSettings::reset() {
 
     CONFIG_ECHO_HEADING(
       "Advanced: B<min_segment_time_us> S<min_feedrate> T<min_travel_feedrate>"
-      #if HAS_JUNCTION_DEVIATION
-        " J<junc_dev>"
-      #endif
+      TERN_(HAS_JUNCTION_DEVIATION, " J<junc_dev>")
       #if HAS_CLASSIC_JERK
         " X<max_x_jerk> Y<max_y_jerk> Z<max_z_jerk>"
         TERN_(HAS_CLASSIC_E_JERK, " E<max_e_jerk>")
@@ -3320,7 +3332,6 @@ void MarlinSettings::reset() {
         if (!forReplay) {
           SERIAL_EOL();
           ubl.report_state();
-          SERIAL_EOL();
           config_heading(false, PSTR("Active Mesh Slot: "), false);
           SERIAL_ECHOLN(ubl.storage_slot);
           config_heading(false, PSTR("EEPROM can hold "), false);
@@ -3940,7 +3951,7 @@ void MarlinSettings::reset() {
 
     #if HAS_MULTI_LANGUAGE
       CONFIG_ECHO_HEADING("UI Language:");
-      SERIAL_ECHO_MSG("  M414 S", ui.language);
+      CONFIG_ECHO_MSG("  M414 S", ui.language);
     #endif
   }
 
